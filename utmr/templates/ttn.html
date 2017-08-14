@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+<form action="" method="post" name="send">
+    {{ form.hidden_tag() }}
+    <p>TTN: {{ form.ttn }}</p>
+    <!--<p>FSRAR: {{ form.fsrar }}</p>
+    <p>UTM: {{ form.utmlist }}</p>-->
+    <label>Select:</label>
+    <select name="utmlist">
+    {% for x in server_list %}
+        <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
+    {% endfor %}
+    </select>
+    <p><input type="submit" value="Send"></p>
+</form>
+{% endblock %}

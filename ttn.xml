@@ -1,0 +1,15 @@
+<ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/QueryParameters" Version="1.0">
+    <ns0:Owner>
+        <ns0:FSRAR_ID>020000745414</ns0:FSRAR_ID>
+    </ns0:Owner>
+    <ns0:Document>
+        <ns0:QueryResendDoc>
+            <ns1:Parameters>
+                <ns1:Parameter>
+                    <ns1:Name>WBREGID</ns1:Name>
+                    <ns1:Value>TTN-0136197466</ns1:Value>
+                </ns1:Parameter>
+            </ns1:Parameters>
+        </ns0:QueryResendDoc>
+    </ns0:Document>
+</ns0:Documents>

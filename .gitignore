@@ -91,6 +91,7 @@ ENV/
 .ropeproject
 
 .idea/
+.idea/*
 utmr.egg-info/
 utmr/__pycache__/
 utmr/env/

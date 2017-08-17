@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import requests
+import os
 import xml.etree.ElementTree as ET
 from flask import Flask, request, redirect, render_template, flash
 from flask_wtf import Form
@@ -58,6 +59,7 @@ utmlist = (
     ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск1'),
 )
 
+xml_path = 'utmr/xml/'
 
 class FSForm(Form):
     ttn = StringField('ttn', validators=[DataRequired()])
@@ -71,11 +73,12 @@ def match_id(select_list: tuple) -> tuple:
 
 
 def make_xml(fsrar: str, content: str, filename: str):
-    tree = ET.parse(filename)
+    path = os.path.join(xml_path,filename)
+    tree = ET.parse(path)
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0][0][1].text = content
-    tree.write(filename)
+    tree.write(path)
 
 
 def send_xml(url: str, files: str, log: str):
@@ -99,7 +102,7 @@ def ttn():
         make_xml(fsrar, ttn, file)
         url = str(link) + '/opt/in/QueryResendDoc'
         log = str(ttn) + ' отправлена ' + str(name) + ' [' + fsrar + ']'
-        files = {'xml_file': (file, open(file, 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
         send_xml(url, files, log)
         return redirect('/ttn')
     return render_template('ttn.html',
@@ -115,7 +118,7 @@ def nattn():
     if request.method == 'POST':
         fsrar, link, name = match_id('utmlist')
         make_xml(fsrar, fsrar, file)
-        files = {'xml_file': (file, open(file, 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
         url = str(link) + '/opt/in/QueryNATTN'
         log = 'Отправлен запрос ' + str(name) + ' [' + fsrar + ']'
         send_xml(url, files, log)
@@ -133,17 +136,17 @@ def reject():
         ttn = request.form['ttn']
         today = str(date.today())
         fsrar, link, name = match_id('utmlist')
+        # xml has another root-tree, so we don't use make_xml function
         # make_xml(fsrar, ttn, file)
-        tree = ET.parse(file)
+        tree = ET.parse(os.path.join(xml_path, file))
         root = tree.getroot()
         root[0][0].text = fsrar
         root[1][0][0][2].text = today
         root[1][0][0][3].text = ttn
-        tree.write(file)
-        flash(str(today))
+        tree.write(os.path.join(xml_path, file))
         url = str(link) + '/opt/in/WayBillAct_v2'
         log = str(ttn) + ' отправлен отзыв / отказ от ' + today + ' ' + str(name) + ' [' + fsrar + ']'
-        files = {'xml_file': (file, open(file, 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
         send_xml(url, files, log)
         return redirect('/reject')
     return render_template('reject.html',

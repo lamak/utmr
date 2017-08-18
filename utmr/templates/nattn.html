@@ -1,13 +1,17 @@
 {% extends "layout.html" %}
 {% block body %}
-{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<form action="" method="post" name="send">
-    <label>Select:</label>
-    <select name="utmlist">
+{% if error %}<p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
+<p class="lead">Запросить необработанные документы</p>
+<form action="" method="post" name="send" role="form">
+<div class="form-group">
+    <label for="utmlist">Выберите УТМ торговый точки</label>
+    <select name="utmlist" class="form-control">
     {% for x in server_list %}
         <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
     {% endfor %}
     </select>
-    <p><input type="submit" value="Send"></p>
+    <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС</span>
+</div>
+<button type="submit" class="btn btn-primary">Отправить запрос</button>
 </form>
 {% endblock %}

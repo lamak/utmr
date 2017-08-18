@@ -1,17 +1,25 @@
 {% extends "layout.html" %}
 {% block body %}
 {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<form action="" method="post" name="send">
+<p class="lead">Отозвать или отклонить документ</p>
+<form action="" method="post" name="send" role="form">
     {{ form.hidden_tag() }}
-    <p>TTN: {{ form.ttn }}</p>
+    <div class="form-group">
+    <label for="ttn_">TTN</label>
+    <p>{{ form.ttn(class="form-control") }}</p>
     <!--<p>FSRAR: {{ form.fsrar }}</p>
     <p>UTM: {{ form.utmlist }}</p>-->
-    <label>Select:</label>
-    <select name="utmlist">
+    <span class="help-block">Укажите полный номер TTN для отзыва, например TTN-1234567890</span>
+    <label for="utmlist">Выберите УТМ торговый точки</label>
+    <select name="utmlist" class="form-control">
     {% for x in server_list %}
         <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
     {% endfor %}
     </select>
-    <p><input type="submit" value="Send"></p>
+    <span class="help-block">Будет отправлен запрос на отзыв (отклонение) накладной (поставщика)</span>
+
+    </div>
+    <p><input type="submit" value="Send" class="btn btn-primary"></p>
 </form>
+
 {% endblock %}

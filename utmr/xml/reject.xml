@@ -1,14 +1,14 @@
 <ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/ActTTNSingle_v2" Version="1.0">
 <ns0:Owner>
-<ns0:FSRAR_ID>020000314999</ns0:FSRAR_ID>
+<ns0:FSRAR_ID>000000000000</ns0:FSRAR_ID>
 </ns0:Owner>
 <ns0:Document>
 <ns0:WayBillAct_v2>
 <ns1:Header>
 <ns1:IsAccept>Rejected</ns1:IsAccept>
 <ns1:ACTNUMBER>1</ns1:ACTNUMBER>
-<ns1:ActDate>2017-08-17</ns1:ActDate>
-<ns1:WBRegId>TTN-0133394178</ns1:WBRegId>
+<ns1:ActDate>2017-08-18</ns1:ActDate>
+<ns1:WBRegId>TTN-1234567890</ns1:WBRegId>
 <ns1:Note>&#1054;&#1090;&#1079;&#1099;&#1074;</ns1:Note>
 </ns1:Header>
 <ns1:Content>

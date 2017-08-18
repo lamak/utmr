@@ -13,13 +13,13 @@ app = Flask(__name__)
 
 app.config.update(dict(
     SECRET_KEY='key',
-    FLASK_DEBUG=True
+    FLASK_DEBUG=True,
+    port=80
+
 ))
 
 
 utmlist = (
-    ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
-    ('102', '000000000000', 'http://000.severotorg.local', 'Host error'),
     ('1', '020000314999', 'http://cash-bk.severotorg.local:8080', 'Большой камень - Аллея Труда'),
     ('2', '030000326777', 'http://bk63-srv01.severotorg.local:8080', 'Большой камень - Крылова'),
     ('3', '030000327460', 'http://vl62-srv01.severotorg.local:8080', 'Владивосток - Баляева'),
@@ -56,7 +56,9 @@ utmlist = (
     ('34', '030000326785', 'http://hb60-srv01.severotorg.local:8080', 'Хабаровск - Шелеста'),
     ('35', '030000326784', 'http://hb61-srv01.severotorg.local:8080', 'Хабаровск - Шкотова'),
     ('36', '030000340126', 'http://ch64-srv01.severotorg.local:8080', 'Черниговка - Октябрьская'),
-    ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск1'),
+    ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск'),
+    ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
+    ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
 )
 
 xml_path = 'utmr/xml/'
@@ -121,6 +123,7 @@ def nattn():
         files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
         url = str(link) + '/opt/in/QueryNATTN'
         log = 'Отправлен запрос ' + str(name) + ' [' + fsrar + ']'
+        # log += '<a href="'+link+'">Check</a>'
         send_xml(url, files, log)
         return redirect('/nattn')
     return render_template('nattn.html',

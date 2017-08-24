@@ -10,7 +10,8 @@
         <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
     {% endfor %}
     </select>
-    <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС</span>
+    <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС<br>
+        Через 3-5 минут перейдите по <strong>ссылке в ответе</strong>, выберите <strong>Входящие</strong>, и откройте <strong>последний документ ReplyNATTN</strong></span>
 </div>
 <button type="submit" class="btn btn-primary">Отправить запрос</button>
 </form>

@@ -3,11 +3,12 @@
 import requests
 import os
 import xml.etree.ElementTree as ET
-from flask import Flask, request, redirect, render_template, flash
+from flask import Flask, request, redirect, render_template, flash, Markup
 from flask_wtf import Form
 from wtforms import StringField
 from wtforms.validators import DataRequired
 from datetime import date
+import logging
 
 app = Flask(__name__)
 
@@ -17,7 +18,6 @@ app.config.update(dict(
     port=80
 
 ))
-
 
 utmlist = (
     ('1', '020000314999', 'http://cash-bk.severotorg.local:8080', 'Большой камень - Аллея Труда'),
@@ -43,8 +43,8 @@ utmlist = (
     ('21', '030000157441', 'http://dbase-np.severotorg.local:8080', 'Находка - Нах проспект'),
     ('22', '030000157440', 'http://cash-nhm.severotorg.local:8080', 'Находка - Нахимовская'),
     ('23', '030000157439', 'http://dbase-nh.severotorg.local:8080', 'Находка - Рыбацкая'),
-    ('24', '030000255411', 'http://pr42-srv01.severotorg.local:8080', 'Партизанск - Ленинская'),
-    ('25', '030000326776', 'http://sp57-srv01.severotorg.local:8080', 'Спасск - Cпасск Э'),
+    ('24', '030000255411', 'http://pr42-srv02.severotorg.local:8080', 'Партизанск - Ленинская'),
+    ('25', '030000326776', 'http://sp57-srv02.severotorg.local:8080', 'Спасск - Cпасск Э'),
     ('26', '020000745415', 'http://dbase-sp.severotorg.local:8080', 'Спасск - Спасск'),
     ('27', '030000326774', 'http://us58-srv01.severotorg.local:8080', 'Уссурийск - Ленинградская'),
     ('28', '020000745413', 'http://cash-uss.severotorg.local:8080', 'Уссурийск - Советская'),
@@ -57,11 +57,15 @@ utmlist = (
     ('35', '030000326784', 'http://hb61-srv01.severotorg.local:8080', 'Хабаровск - Шкотова'),
     ('36', '030000340126', 'http://ch64-srv01.severotorg.local:8080', 'Черниговка - Октябрьская'),
     ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск'),
-    ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
-    ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
+#   ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
+#   ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
 )
 
+r_type = ('TTNHISTORYF2REG', 'ReplyNATTN')
 xml_path = 'utmr/xml/'
+
+logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
 
 class FSForm(Form):
     ttn = StringField('ttn', validators=[DataRequired()])
@@ -75,7 +79,7 @@ def match_id(select_list: tuple) -> tuple:
 
 
 def make_xml(fsrar: str, content: str, filename: str):
-    path = os.path.join(xml_path,filename)
+    path = os.path.join(xml_path, filename)
     tree = ET.parse(path)
     root = tree.getroot()
     root[0][0].text = fsrar
@@ -87,11 +91,35 @@ def send_xml(url: str, files: str, log: str):
     try:
         r = requests.post(url, files=files)
         for sign in ET.fromstring(r.text).iter('sign'):
-            flash(log)
+            flash(Markup(log))
         for error in ET.fromstring(r.text).iter('error'):
             flash(error.text)
     except requests.ConnectionError:
         flash('УТМ недоступен')
+
+
+def del_out(url: str):
+    url_out = url + '/opt/out'
+    response = requests.get(url_out)
+    tree = ET.fromstring(response.text)
+    for u in tree.findall('url'):
+        if any(ext in u.text for ext in r_type):
+            requests.delete(u.text)
+
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        for site in utmlist:
+            try:
+                del_out(site[2])
+                flash(site[2])
+            except:
+                flash(site[2] + 'not available')
+        return redirect('/')
+    return render_template('index.html',
+                           title='MAIN',
+                           )
 
 
 @app.route('/ttn', methods=['GET', 'POST'])
@@ -104,8 +132,9 @@ def ttn():
         make_xml(fsrar, ttn, file)
         url = str(link) + '/opt/in/QueryResendDoc'
         log = str(ttn) + ' отправлена ' + str(name) + ' [' + fsrar + ']'
-        files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
         send_xml(url, files, log)
+        logging.info(log)
         return redirect('/ttn')
     return render_template('ttn.html',
                            title='Send TTN',
@@ -120,16 +149,20 @@ def nattn():
     if request.method == 'POST':
         fsrar, link, name = match_id('utmlist')
         make_xml(fsrar, fsrar, file)
-        files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
         url = str(link) + '/opt/in/QueryNATTN'
-        log = 'Отправлен запрос ' + str(name) + ' [' + fsrar + ']'
+        log = 'Отправлен запрос ' + str(name) + ' [' + fsrar + ']    <a href="' + str(
+            link) + '#menu5">Перейти на УТМ для проверки</a>'
         # log += '<a href="'+link+'">Check</a>'
         send_xml(url, files, log)
+        logging.info(log)
         return redirect('/nattn')
     return render_template('nattn.html',
                            title='Request NATTN',
                            form=form,
-                           server_list=utmlist)
+                           server_list=utmlist,
+                           )
+
 
 @app.route('/reject', methods=['GET', 'POST'])
 def reject():
@@ -149,8 +182,9 @@ def reject():
         tree.write(os.path.join(xml_path, file))
         url = str(link) + '/opt/in/WayBillAct_v2'
         log = str(ttn) + ' отправлен отзыв / отказ от ' + today + ' ' + str(name) + ' [' + fsrar + ']'
-        files = {'xml_file': (file, open(os.path.join(xml_path,file), 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
         send_xml(url, files, log)
+        logging.info(log)
         return redirect('/reject')
     return render_template('reject.html',
                            title='Reject TTN',

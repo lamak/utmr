@@ -2,13 +2,15 @@
 
 import requests
 import os
+import re
+import logging
 import xml.etree.ElementTree as ET
+from grab import Grab
 from flask import Flask, request, redirect, render_template, flash, Markup
 from flask_wtf import Form
 from wtforms import StringField
 from wtforms.validators import DataRequired
 from datetime import date
-import logging
 
 app = Flask(__name__)
 
@@ -57,19 +59,33 @@ utmlist = (
     ('35', '030000326784', 'http://hb61-srv01.severotorg.local:8080', 'Хабаровск - Шкотова'),
     ('36', '030000340126', 'http://ch64-srv01.severotorg.local:8080', 'Черниговка - Октябрьская'),
     ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск'),
-#   ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
-#   ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
+    #   ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
+    #   ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
 )
 
 r_type = ('TTNHISTORYF2REG', 'ReplyNATTN')
 xml_path = 'utmr/xml/'
-
 logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 
 class FSForm(Form):
     ttn = StringField('ttn', validators=[DataRequired()])
 
+def last_date(date_string: str):
+    return re.findall('\d{4}-\d{2}-\d{2}', date_string)[-1]
+
+def parse_utm(utm_url: str):
+    g_utm = Grab(connect_timeout=100)
+    g_utm.go(utm_url)
+
+    gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
+    pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
+
+    fsrar = pki_string.split(' ')[1].split('-')[2]
+    pki_date = last_date(pki_string)
+    gost_date = last_date(gost_string)
+
+    return fsrar, pki_date, gost_date
 
 def match_id(select_list: tuple) -> tuple:
     search = request.form[select_list]
@@ -107,6 +123,18 @@ def del_out(url: str):
             requests.delete(u.text)
 
 
+def get_status(url_utm):
+    grab_utm = Grab(connect_timeout=100)
+    grab_utm.go(url_utm)
+    pki_data_utm = grab_utm.doc.select('//*[@id="home"]/pre[6]').text()
+    if 'действителен' in pki_data_utm:
+        # l = (pki_data.split(' '))
+        # print(l)
+        print(pki_data_utm.split(' ')[1].split('-')[2])
+    else:
+        print('not found')
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -140,6 +168,10 @@ def ttn():
                            title='Send TTN',
                            form=form,
                            server_list=utmlist)
+
+
+@app.route('/status', methods=['GET', 'POST'])
+def status():
 
 
 @app.route('/nattn', methods=['GET', 'POST'])

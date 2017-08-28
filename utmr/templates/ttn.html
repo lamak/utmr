@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block body %}
 {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<p class="lead">Запросить TTN</p>
+
 <form action="" method="post" name="send" role="form">
     {{ form.hidden_tag() }}
     <div class="form-group">

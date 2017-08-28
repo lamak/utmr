@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+<form action="" method="post" name="send" role="form">
+    <p><input type="submit" value="Send" class="btn btn-primary"></p>
+</form>
+<table class="table table-hover">
+<thead>
+  <tr>
+    <th>TTN</th>
+    <th>Дата</th>
+    <th>Накладная</th>
+  </tr>
+</thead>
+<tbody>
+{% for x in megalist %}
+  <tr>
+    <td>{{ x[0] }}</td>
+    <td>{{ x[1] }}</td>
+    <td>{{ x[2] }}</td>
+  </tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}

@@ -1,7 +1,6 @@
 {% extends "layout.html" %}
 {% block body %}
 {% if error %}<p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
-<p class="lead">Запросить необработанные документы</p>
 <form action="" method="post" name="send" role="form">
 <div class="form-group">
     <label for="utmlist">Выберите УТМ торговый точки</label>
@@ -10,8 +9,7 @@
         <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
     {% endfor %}
     </select>
-    <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС<br>
-        Через 3-5 минут перейдите по <strong>ссылке в ответе</strong>, выберите <strong>Входящие</strong>, и откройте <strong>последний документ ReplyNATTN</strong></span>
+    <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС. Проверить его можете через 3-5 минут <a href="{{ url_for('index') }}">здесь</a></span>
 </div>
 <button type="submit" class="btn btn-primary">Отправить запрос</button>
 </form>

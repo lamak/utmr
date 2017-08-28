@@ -5,8 +5,23 @@
     <title>{{ title }}</title>
     <!-- <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">-->
     <link rel=stylesheet type=text/css href="{{ url_for('static', filename='bootstrap.min.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='eagle.png') }}" />
 </head>
 <body>
+    <div class="navbar navbar-default navbar-static-top" role="navigation">
+      <div class="container">
+        <div class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+              <li><a href="{{ url_for('ttn') }}">Повторный запрос</a></li>
+              <li><a href="{{ url_for('reject') }}">Отклонить документ</a></li>
+              <li><a href="{{ url_for('nattn') }}">Запрос необработанных</a></li>
+              <li><a href="{{ url_for('index') }}">Проверка необработанных</a></li>
+        </div><!--/.nav-collapse -->
+      </div>
+    </div>
+    <div class="container">
+
+
     <div class=container>
         <div class="page-header">
             <h1>UTMR</h1>

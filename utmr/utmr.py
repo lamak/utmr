@@ -17,9 +17,7 @@ app = Flask(__name__)
 app.config.update(dict(
     SECRET_KEY='key',
     FLASK_DEBUG=True,
-    port=80
-
-))
+    port=80))
 
 utmlist = (
     ('1', '020000314999', 'http://cash-bk.severotorg.local:8080', 'Большой камень - Аллея Труда'),
@@ -59,8 +57,7 @@ utmlist = (
     ('35', '030000326784', 'http://hb61-srv01.severotorg.local:8080', 'Хабаровск - Шкотова'),
     ('36', '030000340126', 'http://ch64-srv01.severotorg.local:8080', 'Черниговка - Октябрьская'),
     ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск'),
-    #   ('101', '000000000000', 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),
-    #   ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
+    #   ('101', '000000000000' 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),   ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
 )
 
 r_type = ('TTNHISTORYF2REG', 'ReplyNATTN')
@@ -71,8 +68,10 @@ logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(le
 class FSForm(Form):
     ttn = StringField('ttn', validators=[DataRequired()])
 
+
 def last_date(date_string: str):
     return re.findall('\d{4}-\d{2}-\d{2}', date_string)[-1]
+
 
 def parse_utm(utm_url: str):
     g_utm = Grab(connect_timeout=100)
@@ -86,6 +85,7 @@ def parse_utm(utm_url: str):
     gost_date = last_date(gost_string)
 
     return fsrar, pki_date, gost_date
+
 
 def match_id(select_list: tuple) -> tuple:
     search = request.form[select_list]
@@ -114,6 +114,16 @@ def send_xml(url: str, files: str, log: str):
         flash('УТМ недоступен')
 
 
+def request_nattn(fsrar: str, url: str):
+    file = 'nattn.xml'
+    if request.method == 'POST':
+        # fsrar, link, name = match_id('utmlist')
+        make_xml(fsrar, fsrar, file)
+        files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
+        url = str(url) + '/opt/in/QueryNATTN'
+        send_xml(url, files, '')
+
+
 def del_out(url: str):
     url_out = url + '/opt/out'
     response = requests.get(url_out)
@@ -135,19 +145,43 @@ def get_status(url_utm):
         print('not found')
 
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        for site in utmlist:
-            try:
-                del_out(site[2])
-                flash(site[2])
-            except:
-                flash(site[2] + 'not available')
-        return redirect('/')
-    return render_template('index.html',
-                           title='MAIN',
-                           )
+def delete_nattn(url):
+    response = requests.get(url)
+    tree = ET.fromstring(response.text)
+    for u in tree.findall('url'):
+        if any(ext in u.text for ext in r_type):
+            print(u.text)
+            requests.delete(u.text)
+
+
+def find_last_nattn(url: str) -> str:
+    reply = 'none'
+    url_out = url + '/opt/out'
+    response = requests.get(url_out)
+    tree = ET.fromstring(response.text)
+    for u in tree.findall('url'):
+        if 'ReplyNATTN' in u.text:
+            reply = u.text
+    return reply
+
+
+def parse_nattn(url: str):
+    ttn_list, date_list, doc_list, list = [], [], [], []
+    try:
+        response = requests.get(url)
+        tree = ET.fromstring(response.text)
+        for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}WbRegID'):
+            ttn_list.append(elem.text)
+        for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}ttnDate'):
+            date_list.append(elem.text)
+        for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}ttnNumber'):
+            doc_list.append(elem.text)
+        for i, ttn in enumerate(ttn_list):
+            list.append([ttn_list[i], date_list[i], doc_list[i]])
+    except:
+        return (' ')
+
+    return list
 
 
 @app.route('/ttn', methods=['GET', 'POST'])
@@ -165,13 +199,9 @@ def ttn():
         logging.info(log)
         return redirect('/ttn')
     return render_template('ttn.html',
-                           title='Send TTN',
+                           title='Повторный запрос TTN',
                            form=form,
                            server_list=utmlist)
-
-
-@app.route('/status', methods=['GET', 'POST'])
-def status():
 
 
 @app.route('/nattn', methods=['GET', 'POST'])
@@ -190,10 +220,9 @@ def nattn():
         logging.info(log)
         return redirect('/nattn')
     return render_template('nattn.html',
-                           title='Request NATTN',
+                           title='Запросить необработанные TTN',
                            form=form,
-                           server_list=utmlist,
-                           )
+                           server_list=utmlist, )
 
 
 @app.route('/reject', methods=['GET', 'POST'])
@@ -219,6 +248,65 @@ def reject():
         logging.info(log)
         return redirect('/reject')
     return render_template('reject.html',
-                           title='Reject TTN',
+                           title='Отозвать или отклонить TTN',
                            form=form,
                            server_list=utmlist)
+
+
+@app.route('/index', methods=['GET', 'POST'])
+def index():
+    form = FSForm()
+    if request.method == 'POST':
+        fsrar, link, name = match_id('utmlist')
+        ttnlist = parse_nattn(find_last_nattn(link))
+        if ttnlist == ' ':
+            flash('Нет запроса необработанных документов')
+        elif ttnlist == []:
+            flash('Все документы обработаны')
+        else:
+            flash('Необработанные документы в списке результатов')
+        return render_template('index.html',
+                               title='Проверить необработанные TTN',
+                               form=form,
+                               server_list=utmlist,
+                               doc_list=ttnlist,
+                               tt=name)
+    return render_template('index.html',
+                           title='Проверить необработанные TTN',
+                           form=form,
+                           server_list=utmlist, )
+
+
+@app.route('/service', methods=['GET', 'POST'])
+def daily():
+    if request.method == 'POST':
+        for site in utmlist:
+            try:
+                del_out(site[2])
+                flash(site[2])
+                request_nattn(site[1],site[2])
+            except:
+                flash(site[2] + 'not available')
+        return redirect('/service')
+    return render_template('service.html',
+                           title='Очистка УТМ',
+                           )
+
+
+@app.route('/status', methods=['GET', 'POST'])
+def status():
+    if request.method == 'POST':
+        megalist = []
+        for site in utmlist:
+            #flash(parse_utm(site[2]))
+            megalist.append(parse_utm(site[2]))
+            # try:
+            #     flash(parse_utm(site[2]))
+            # except:
+            #     pass
+        return render_template('status.html',
+                               megalist=megalist
+                               )
+    return render_template('status.html',
+                           title='Статус УТМ',
+                           )

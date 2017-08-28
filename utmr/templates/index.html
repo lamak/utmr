@@ -1,9 +1,34 @@
 {% extends "layout.html" %}
 {% block body %}
-{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<p class="lead">Утилиты</p>
+{% if error %}<p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
 <form action="" method="post" name="send" role="form">
-    <p><input type="submit" value="Send" class="btn btn-primary"></p>
+<div class="form-group">
+    <label for="utmlist">Выберите УТМ торговый точки для проверки</label>
+    <select name="utmlist" class="form-control">
+    {% for x in server_list %}
+        <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
+    {% endfor %}
+    </select>
+    <span class="help-block">При наличии запроса документы будут выведены в список</span>
+</div>
+<button type="submit" class="btn btn-primary">Проверить документы</button>
 </form>
-
+<h3>Результат: {{ tt }}</h3>
+<table class="table table-hover">
+<thead>
+  <tr>
+    <th>TTN</th>
+    <th>Дата</th>
+    <th>Накладная</th>
+  </tr>
+</thead>
+<tbody>
+{% for x in doc_list %}
+  <tr>
+    <td>{{ x[0] }}</td>
+    <td>{{ x[1] }}</td>
+    <td>{{ x[2] }}</td>
+  </tr>
+{% endfor %}
+</tbody></table>
 {% endblock %}

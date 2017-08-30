@@ -31,7 +31,7 @@ utmlist = (
     ('9', '020000623565', 'http://vl27-srv03.severotorg.local:8080', 'Владивосток - Ильичева'),
     ('10', '030000323196', 'http://vl48-srv03.severotorg.local:8080', 'Владивосток - Калинина'),
     ('11', '020000674029', 'http://vl21-srv03.severotorg.local:8080', 'Владивосток - Кр. знамени'),
-    ('12', '020000623570', 'http://dbase-rs.severotorg.local:8080', 'Владивосток - Русская'),
+    ('12', '020000623570', 'http://vl29-srv03.severotorg.local:8080', 'Владивосток - Русская'),
     ('13', '030000315698', 'http://vl49-srv03.severotorg.local:8080', 'Владивосток - Ульяновская'),
     ('14', '020000623563', 'http://dbase-fs.severotorg.local:8080', 'Владивосток - Фирсова'),
     ('15', '020000623571', 'http://vl31-srv03.severotorg.local:8080', 'Владивосток - Хабаровская'),
@@ -45,7 +45,7 @@ utmlist = (
     ('23', '030000157439', 'http://dbase-nh.severotorg.local:8080', 'Находка - Рыбацкая'),
     ('24', '030000255411', 'http://pr42-srv02.severotorg.local:8080', 'Партизанск - Ленинская'),
     ('25', '030000326776', 'http://sp57-srv02.severotorg.local:8080', 'Спасск - Cпасск Э'),
-    ('26', '020000745415', 'http://dbase-sp.severotorg.local:8080', 'Спасск - Спасск'),
+    # ('26', '020000745415', 'http://dbase-sp.severotorg.local:8080', 'Спасск - Спасск'),
     ('27', '030000326774', 'http://us58-srv01.severotorg.local:8080', 'Уссурийск - Ленинградская'),
     ('28', '020000745413', 'http://cash-uss.severotorg.local:8080', 'Уссурийск - Советская'),
     ('29', '020000745414', 'http://dbase-usch.severotorg.local:8080', 'Уссурийск - Чичерина'),
@@ -57,10 +57,9 @@ utmlist = (
     ('35', '030000326784', 'http://hb61-srv01.severotorg.local:8080', 'Хабаровск - Шкотова'),
     ('36', '030000340126', 'http://ch64-srv01.severotorg.local:8080', 'Черниговка - Октябрьская'),
     ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск'),
-    #   ('101', '000000000000' 'http://cash-bk.severotorg.local:8080', 'FSRAR error'),   ('102', '000000000000', 'http://000.severotorg.local', 'Host error')
 )
 
-r_type = ('TTNHISTORYF2REG', 'ReplyNATTN')
+r_type = ('ReplyNATTN')
 xml_path = 'utmr/xml/'
 logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
@@ -74,17 +73,28 @@ def last_date(date_string: str):
 
 
 def parse_utm(utm_url: str):
+    from datetime import datetime
+    # fsrar, pki_date, gost_date, status_string, license_string, cheque_date = '', '', '', '', '', ''
+
     g_utm = Grab(connect_timeout=100)
     g_utm.go(utm_url)
-
     gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
     pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
-
+    status_string = g_utm.doc.select('//*[@id="home"]/pre[2]/img/@alt').text()
+    license_string = g_utm.doc.select('//*[@id="home"]/pre[3]/img/@alt').text()
+    cheque_string = g_utm.doc.select('//*[@id="home"]/pre[5]').text()
     fsrar = pki_string.split(' ')[1].split('-')[2]
     pki_date = last_date(pki_string)
     gost_date = last_date(gost_string)
+    try:
+        cheque_date = last_date(cheque_string)
+    except:
+        cheque_date = 'OK'
+    if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
+        cheque_date = 'OK'
 
-    return fsrar, pki_date, gost_date
+
+    return fsrar, pki_date, gost_date, status_string, license_string, cheque_date
 
 
 def match_id(select_list: tuple) -> tuple:
@@ -117,58 +127,43 @@ def send_xml(url: str, files: str, log: str):
 def request_nattn(fsrar: str, url: str):
     file = 'nattn.xml'
     if request.method == 'POST':
-        # fsrar, link, name = match_id('utmlist')
+        counter = 0
         make_xml(fsrar, fsrar, file)
         files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
         url = str(url) + '/opt/in/QueryNATTN'
         send_xml(url, files, '')
+        counter += 1
+    return counter
 
 
 def del_out(url: str):
+    counter = 0
     url_out = url + '/opt/out'
     response = requests.get(url_out)
     tree = ET.fromstring(response.text)
     for u in tree.findall('url'):
         if any(ext in u.text for ext in r_type):
             requests.delete(u.text)
-
-
-def get_status(url_utm):
-    grab_utm = Grab(connect_timeout=100)
-    grab_utm.go(url_utm)
-    pki_data_utm = grab_utm.doc.select('//*[@id="home"]/pre[6]').text()
-    if 'действителен' in pki_data_utm:
-        # l = (pki_data.split(' '))
-        # print(l)
-        print(pki_data_utm.split(' ')[1].split('-')[2])
-    else:
-        print('not found')
-
-
-def delete_nattn(url):
-    response = requests.get(url)
-    tree = ET.fromstring(response.text)
-    for u in tree.findall('url'):
-        if any(ext in u.text for ext in r_type):
-            print(u.text)
-            requests.delete(u.text)
+            counter += 1
+    return counter
 
 
 def find_last_nattn(url: str) -> str:
-    reply = 'none'
     url_out = url + '/opt/out'
     response = requests.get(url_out)
     tree = ET.fromstring(response.text)
-    for u in tree.findall('url'):
-        if 'ReplyNATTN' in u.text:
-            reply = u.text
-    return reply
+    for nattn_url in reversed(tree.findall('url')):
+        if 'ReplyNATTN' in nattn_url.text:
+            return nattn_url.text
 
 
 def parse_nattn(url: str):
-    ttn_list, date_list, doc_list, list = [], [], [], []
+    ttn_list, date_list, doc_list, nattn_list = [], [], [], []
     try:
         response = requests.get(url)
+    except requests.exceptions.RequestException as e:
+        flash(url, e)
+    try:
         tree = ET.fromstring(response.text)
         for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}WbRegID'):
             ttn_list.append(elem.text)
@@ -177,11 +172,10 @@ def parse_nattn(url: str):
         for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}ttnNumber'):
             doc_list.append(elem.text)
         for i, ttn in enumerate(ttn_list):
-            list.append([ttn_list[i], date_list[i], doc_list[i]])
-    except:
-        return (' ')
-
-    return list
+            nattn_list.append([ttn_list[i], date_list[i], doc_list[i]])
+    except ET.ParseError as e:
+        flash(url, e)
+    return nattn_list
 
 
 @app.route('/ttn', methods=['GET', 'POST'])
@@ -204,8 +198,8 @@ def ttn():
                            server_list=utmlist)
 
 
-@app.route('/nattn', methods=['GET', 'POST'])
-def nattn():
+@app.route('/get_nattn', methods=['GET', 'POST'])
+def get_nattn():
     form = FSForm()
     file = 'nattn.xml'
     if request.method == 'POST':
@@ -218,8 +212,8 @@ def nattn():
         # log += '<a href="'+link+'">Check</a>'
         send_xml(url, files, log)
         logging.info(log)
-        return redirect('/nattn')
-    return render_template('nattn.html',
+        return redirect('/get_nattn')
+    return render_template('get_nattn.html',
                            title='Запросить необработанные TTN',
                            form=form,
                            server_list=utmlist, )
@@ -233,8 +227,6 @@ def reject():
         ttn = request.form['ttn']
         today = str(date.today())
         fsrar, link, name = match_id('utmlist')
-        # xml has another root-tree, so we don't use make_xml function
-        # make_xml(fsrar, ttn, file)
         tree = ET.parse(os.path.join(xml_path, file))
         root = tree.getroot()
         root[0][0].text = fsrar
@@ -253,8 +245,8 @@ def reject():
                            server_list=utmlist)
 
 
-@app.route('/index', methods=['GET', 'POST'])
-def index():
+@app.route('/check_nattn', methods=['GET', 'POST'])
+def check_nattn():
     form = FSForm()
     if request.method == 'POST':
         fsrar, link, name = match_id('utmlist')
@@ -265,29 +257,31 @@ def index():
             flash('Все документы обработаны')
         else:
             flash('Необработанные документы в списке результатов')
-        return render_template('index.html',
+        return render_template('check_nattn.html',
                                title='Проверить необработанные TTN',
                                form=form,
                                server_list=utmlist,
                                doc_list=ttnlist,
                                tt=name)
-    return render_template('index.html',
+    return render_template('check_nattn.html',
                            title='Проверить необработанные TTN',
                            form=form,
                            server_list=utmlist, )
 
 
 @app.route('/service', methods=['GET', 'POST'])
-def daily():
+def service():
     if request.method == 'POST':
+        megalist = []
         for site in utmlist:
             try:
-                del_out(site[2])
-                flash(site[2])
-                request_nattn(site[1],site[2])
+                megalist.append((site[3], del_out(site[2]), request_nattn(site[1], site[2])))
             except:
-                flash(site[2] + 'not available')
-        return redirect('/service')
+                megalist.append((site[3], 'not available'))
+        return render_template('service.html',
+                               title='Очистка УТМ',
+                               megalist=megalist,
+                               )
     return render_template('service.html',
                            title='Очистка УТМ',
                            )
@@ -295,17 +289,13 @@ def daily():
 
 @app.route('/status', methods=['GET', 'POST'])
 def status():
+    megalist = []
     if request.method == 'POST':
-        megalist = []
-        for site in utmlist:
-            #flash(parse_utm(site[2]))
-            megalist.append(parse_utm(site[2]))
-            # try:
-            #     flash(parse_utm(site[2]))
-            # except:
-            #     pass
+        for i, site in enumerate(utmlist):
+            megalist.append(utmlist[i] + parse_utm(site[2]))
         return render_template('status.html',
-                               megalist=megalist
+                               megalist=megalist,
+                               title='Статус УТМ',
                                )
     return render_template('status.html',
                            title='Статус УТМ',

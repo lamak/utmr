@@ -1,9 +1,40 @@
 {% extends "layout.html" %}
 {% block body %}
 {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<p class="lead">Очистка УТМ</p>
-<form action="" method="post" name="send" role="form">
+<form action="" method="post" id="send" name="send" role="form">
+    <span class="help-block">Удалить с УТМ запросы необработанных и запросить новые</span>
     <p><input type="submit" value="Send" class="btn btn-primary"></p>
 </form>
+<table class="table table-hover">
+<thead>
+  <tr>
 
+    <th>ТТ</th>
+    <th>Удалено</th>
+    <th>Запрошено</th>
+
+  </tr>
+</thead>
+<tbody>
+{% for x in megalist %}
+  <tr>
+    <td>{{ x[0] }}</td>
+    <td>{{ x[1] }}</td>
+    <td>{{ x[2] }}</td>
+  </tr>
+{% endfor %}
+</tbody></table>
+<script>
+
+    var auto_refresh = setInterval(
+    function()
+    {
+    submitform();
+    }, 43210000);
+
+    function submitform()
+    {
+      document.send.submit();
+    }
+    </script>
 {% endblock %}

@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if error %}<p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
+<form action="" id="send" method="post" name="send" role="form">
+
+    <div class="form-group">
+        <label for="utmlist">Выберите УТМ торговый точки</label>
+
+        <select name="utmlist" class="form-control">
+            {% for x in server_list %}
+                <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
+            {% endfor %}
+        </select>
+        <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС. Проверить его можно через 3-5 минут <a href="{{ url_for('check_nattn') }}">здесь</a></span>
+
+    </div>
+    <button type="submit" class="btn btn-primary">Отправить запрос</button>
+</form>
+
+{% endblock %}

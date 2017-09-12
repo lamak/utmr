@@ -1,7 +1,8 @@
 {% extends "layout.html" %}
 {% block body %}
 {% if error %}<p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
-<form action="" id="send" method="post" name="send" role="form">
+<form action="" method="post" name="send" role="form">
+    {{ form.hidden_tag() }}
 
     <div class="form-group">
         <label for="utmlist">Выберите УТМ торговый точки</label>
@@ -14,7 +15,7 @@
         <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС. Проверить его можно через 3-5 минут <a href="{{ url_for('check_nattn') }}">здесь</a></span>
 
     </div>
-    <button type="submit" class="btn btn-primary">Отправить запрос</button>
+    <p><input type="submit" value="Send" class="btn btn-primary"></p>
 </form>
 
 {% endblock %}

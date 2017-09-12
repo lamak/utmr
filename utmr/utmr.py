@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-
 import requests
 import os
 import re
 import logging
 import xml.etree.ElementTree as ET
-from grab import Grab
+from grab import Grab, GrabTimeoutError
 from flask import Flask, request, redirect, render_template, flash, Markup
-from flask_wtf import Form
+from flask_wtf import FlaskForm
 from wtforms import StringField
 from wtforms.validators import DataRequired
 from datetime import date
@@ -45,7 +44,7 @@ utmlist = (
     ('23', '030000157439', 'http://dbase-nh.severotorg.local:8080', 'Находка - Рыбацкая'),
     ('24', '030000255411', 'http://pr42-srv02.severotorg.local:8080', 'Партизанск - Ленинская'),
     ('25', '030000326776', 'http://sp57-srv02.severotorg.local:8080', 'Спасск - Cпасск Э'),
-    # ('26', '020000745415', 'http://dbase-sp.severotorg.local:8080', 'Спасск - Спасск'),
+    ('26', '030000353814', 'http://sp65-srv01.severotorg.local:8080', 'Спасск - Новый спасск'),
     ('27', '030000326774', 'http://us58-srv01.severotorg.local:8080', 'Уссурийск - Ленинградская'),
     ('28', '020000745413', 'http://cash-uss.severotorg.local:8080', 'Уссурийск - Советская'),
     ('29', '020000745414', 'http://dbase-usch.severotorg.local:8080', 'Уссурийск - Чичерина'),
@@ -59,12 +58,12 @@ utmlist = (
     ('37', '030000295973', 'http://ks59-srv01.severotorg.local:8080', 'Комсомольск'),
 )
 
-r_type = ('ReplyNATTN')
+r_type = ('ReplyNATTN', 'TTNHISTORYF2REG')
 xml_path = 'utmr/xml/'
 logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 
-class FSForm(Form):
+class FSForm(FlaskForm):
     ttn = StringField('ttn', validators=[DataRequired()])
 
 
@@ -74,26 +73,29 @@ def last_date(date_string: str):
 
 def parse_utm(utm_url: str):
     from datetime import datetime
-    # fsrar, pki_date, gost_date, status_string, license_string, cheque_date = '', '', '', '', '', ''
-
-    g_utm = Grab(connect_timeout=100)
-    g_utm.go(utm_url)
-    gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
-    pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
-    status_string = g_utm.doc.select('//*[@id="home"]/pre[2]/img/@alt').text()
-    license_string = g_utm.doc.select('//*[@id="home"]/pre[3]/img/@alt').text()
-    cheque_string = g_utm.doc.select('//*[@id="home"]/pre[5]').text()
-    fsrar = pki_string.split(' ')[1].split('-')[2]
-    pki_date = last_date(pki_string)
-    gost_date = last_date(gost_string)
+    fsrar, pki_date, gost_date, status_string, license_string, cheque_date = '', '', '', '', '', ''
     try:
-        cheque_date = last_date(cheque_string)
-    except:
-        cheque_date = 'OK'
-    if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
-        cheque_date = 'OK'
-
-
+        g_utm = Grab(connect_timeout=100)
+        g_utm.go(utm_url)
+        gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
+        pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
+        status_string = g_utm.doc.select('//*[@id="home"]/pre[2]/img/@alt').text()
+        license_string = g_utm.doc.select('//*[@id="home"]/pre[3]/img/@alt').text()
+        cheque_string = g_utm.doc.select('//*[@id="home"]/pre[5]').text()
+        try:
+            fsrar = pki_string.split(' ')[1].split('-')[2]
+            pki_date = last_date(pki_string)
+            gost_date = last_date(gost_string)
+        except:
+            pass
+        try:
+            cheque_date = last_date(cheque_string)
+        except:
+            cheque_date = 'OK'
+        if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
+            cheque_date = 'OK'
+    except GrabTimeoutError:
+        pass
     return fsrar, pki_date, gost_date, status_string, license_string, cheque_date
 
 
@@ -113,15 +115,20 @@ def make_xml(fsrar: str, content: str, filename: str):
     tree.write(path)
 
 
-def send_xml(url: str, files: str, log: str):
+def send_xml(url: str, files, log: str):
     try:
         r = requests.post(url, files=files)
         for sign in ET.fromstring(r.text).iter('sign'):
-            flash(Markup(log))
+            # flash(Markup(log))
+            # e = r.text
+            e = 'Отправлено'
         for error in ET.fromstring(r.text).iter('error'):
-            flash(error.text)
+            # flash(error.text)
+            e = error.text
     except requests.ConnectionError:
-        flash('УТМ недоступен')
+        # flash('УТМ недоступен')
+        e = 'УТМ недоступен'
+    return e
 
 
 def request_nattn(fsrar: str, url: str):
@@ -131,9 +138,11 @@ def request_nattn(fsrar: str, url: str):
         make_xml(fsrar, fsrar, file)
         files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
         url = str(url) + '/opt/in/QueryNATTN'
-        send_xml(url, files, '')
-        counter += 1
-    return counter
+        try:
+            e = send_xml(url, files, '')
+        except:
+            e = 'Не отправлен'
+    return e
 
 
 def del_out(url: str):
@@ -209,14 +218,13 @@ def get_nattn():
         url = str(link) + '/opt/in/QueryNATTN'
         log = 'Отправлен запрос ' + str(name) + ' [' + fsrar + ']    <a href="' + str(
             link) + '#menu5">Перейти на УТМ для проверки</a>'
-        # log += '<a href="'+link+'">Check</a>'
         send_xml(url, files, log)
         logging.info(log)
         return redirect('/get_nattn')
     return render_template('get_nattn.html',
                            title='Запросить необработанные TTN',
                            form=form,
-                           server_list=utmlist, )
+                           server_list=utmlist)
 
 
 @app.route('/reject', methods=['GET', 'POST'])
@@ -249,7 +257,7 @@ def reject():
 def check_nattn():
     form = FSForm()
     if request.method == 'POST':
-        fsrar, link, name = match_id('utmlist')
+        fsrar, link, name = match_id(utmlist)
         ttnlist = parse_nattn(find_last_nattn(link))
         if ttnlist == ' ':
             flash('Нет запроса необработанных документов')
@@ -300,3 +308,22 @@ def status():
     return render_template('status.html',
                            title='Статус УТМ',
                            )
+
+    # @app.route('/cheque', methods=['GET', 'POST'])
+    # def cheque():
+    #     form = FSForm()
+    #     file = 'cheque.xml'
+    #     if request.method == 'POST' and form.validate_on_submit():
+    #         ttn = request.form['ttn']
+    #         fsrar, link, name = match_id('utmlist')
+    #         make_xml(fsrar, ttn, file)
+    #         url = str(link) + '/opt/in/QueryResendDoc'
+    #         log = str(ttn) + ' отправлена ' + str(name) + ' [' + fsrar + ']'
+    #         files = {'xml_file': (file, open(os.path.join(xml_path, file), 'rb'), 'application/xml')}
+    #         send_xml(url, files, log)
+    #         logging.info(log)
+    #         return redirect('/ttn')
+    #     return render_template('ttn.html',
+    #                            title='Отправка чека',
+    #                            form=form,
+    #                            server_list=utmlist)

@@ -1,38 +1,42 @@
 {% extends "layout.html" %}
 {% block body %}
-{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    {% if error %}
+        <p class=error><strong>Error:</strong> {{ error }}{% endif %}
 <form action="" method="post" name="send" role="form">
-    <span class="help-block">Получить ФСРАР, дату сертификатов со всех УТМ, запрос выполняется ~ 15 секунд.
+    <span class="help-block">Получить ФСРАР, дату сертификатов со всех УТМ, запрос выполняется около 10 секунд.
     <br>Статус означает УТМ работает с ключом
-    <br>Лицензия означает числится ли лицензия для ТТ
-    <br>Последний чек - допустимо 1 день, иначе отображается дата последнего чека</span>
+    <br>Последний чек не должен превышать сегодняшее число, иначе на УТМ проблема со связью.</span>
     <p><input type="submit" value="Обновить" class="btn btn-primary"></p>
-</form>
-<table class="table table-hover">
-<thead>
-  <tr>
-    <th>#</th>
-    <th>ТТ</th>
-    <th>ФСРАР ИД</th>
-    <th>Дата PKI</th>
-    <th>Дата ГОСТ</th>
-    <th>Последний чек</th>
-    <th>Статус</th>
-    <th>Лицензия</th>
-  </tr>
-</thead>
-<tbody>
-{% for x in megalist %}
-  <tr>
-    <td>{{ x[0] }}</td>
-    <td><a href="{{ x[2] }}">{{ x[3] }}</a></td>
-    <td>{{ x[4] }}</td>
-    <td>{{ x[5] }}</td>
-    <td>{{ x[6] }}</td>
-    <td>{% if x[9] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %} <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING"> {{ x[9] }} {% endif %}</td>
-    <td>{% if x[7] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %} <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
-    <td>{% if x[8] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %} <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
-  </tr>
-{% endfor %}
-</tbody></table>
+    </form>
+    <table class="table table-hover">
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>ТТ</th>
+            <th>ФСРАР ИД</th>
+            <th>Дата PKI</th>
+            <th>Дата ГОСТ</th>
+            <th>Последний чек</th>
+            <th>Статус</th>
+            <th>Лицензия</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for x in megalist %}
+            <tr>
+                <td>{{ x[0] }}</td>
+                <td><a href="{{ x[2] }}">{{ x[3] }}</a></td>
+                <td>{{ x[4] }}</td>
+                <td>{{ x[5] }}</td>
+                <td>{{ x[6] }}</td>
+                <td>{% if x[9] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
+                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING"> {{ x[9] }} {% endif %}</td>
+                <td>{% if x[7] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
+                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
+                <td>{% if x[8] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
+                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
 {% endblock %}

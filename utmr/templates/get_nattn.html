@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% block body %}
-{% if error %}<p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
+    {% if error %}
+        <p class=error><strong>Ошибка:</strong> {{ error }}{% endif %}
 <form action="" method="post" name="send" role="form">
     {{ form.hidden_tag() }}
 
@@ -12,10 +13,11 @@
                 <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
             {% endfor %}
         </select>
-        <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС. Проверить его можно через 3-5 минут <a href="{{ url_for('check_nattn') }}">здесь</a></span>
+        <span class="help-block">Будет отправлен запрос необработанных накладных ЕГАИС. Проверить его можно через 3-5 минут <a
+                href="{{ url_for('check_nattn') }}">здесь</a></span>
 
     </div>
-    <p><input type="submit" value="Send" class="btn btn-primary"></p>
-</form>
+    <p><input type="submit" value="Запросить" class="btn btn-primary"></p>
+    </form>
 
 {% endblock %}

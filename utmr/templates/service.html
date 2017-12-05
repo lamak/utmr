@@ -1,40 +1,44 @@
 {% extends "layout.html" %}
 {% block body %}
-{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    {% if error %}
+        <p class=error><strong>Error:</strong> {{ error }}{% endif %}
 <form action="" method="post" id="send" name="send" role="form">
-    <span class="help-block">Удалить с УТМ запросы необработанных и запросить новые</span>
-    <p><input type="submit" value="Send" class="btn btn-primary"></p>
-</form>
-<table class="table table-hover">
-<thead>
-  <tr>
+    <p class="lead">Удаление документов "необработанные документы" (ReplyNATTN) со всех УТМ и запрос актуальных</p>
+    <span class="help-block">Удаление лишних документов и запрос новых по всем УТМ сразу.<br>
+        Списки необработанных документов можно запрашивать раз в 12 часов, поэтому удалять чаще нельзя, т.к. новые не придут.<br>
+        После запроса </span>
 
-    <th>ТТ</th>
-    <th>Удалено</th>
-    <th>Запрошено</th>
+    <p><input type="submit" value="Выполнить" class="btn btn-primary"></p>
+    </form>
+    <table class="table table-hover">
+        <thead>
+        <tr>
 
-  </tr>
-</thead>
-<tbody>
-{% for x in megalist %}
-  <tr>
-    <td>{{ x[0] }}</td>
-    <td>{{ x[1] }}</td>
-    <td>{{ x[2] }}</td>
-  </tr>
-{% endfor %}
-</tbody></table>
-<script>
+            <th>ТТ</th>
+            <th>Удалено</th>
+            <th>Запрошено</th>
 
-    var auto_refresh = setInterval(
-    function()
-    {
-    submitform();
-    }, 43210000);
+        </tr>
+        </thead>
+        <tbody>
+        {% for x in megalist %}
+            <tr>
+                <td>{{ x[0] }}</td>
+                <td>{{ x[1] }}</td>
+                <td>{{ x[2] }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <script>
 
-    function submitform()
-    {
-      document.send.submit();
-    }
+        var auto_refresh = setInterval(
+            function () {
+                submitform();
+            }, 43210000);
+
+        function submitform() {
+            document.send.submit();
+        }
     </script>
 {% endblock %}

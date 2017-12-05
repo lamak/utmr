@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    <p class="lead">Позволяет обработать документ заново, возвращая документ к статусу нового, без повторной пересылки
+        поставщиком</p>
+    <form action="" method="post" name="send" role="form">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+        <label for="ttn">TTN</label>
+        <p>{{ form.ttn(class="form-control") }}</p>
+        <span class="help-block">Укажите полный номер TTN для распроведения, например TTN-1234567890</span>
+        <label for="utmlist">Выберите УТМ торговый точки</label>
+        <select name="utmlist" class="form-control">
+            {% for x in server_list %}
+                <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
+            {% endfor %}
+        </select>
+        <span class="help-block">Будет отправлен запрос на распроведение (WBREPEAL) завершенного документа. <br>Убедитесь, что документ (акт расхождения) был завершен, т.е. принят или отказан. <br>После отправки запроса на распроведение поставщик должен его подтвердить, а мы можем повторно запросить TTN и обработать ее.</span>
+    </div>
+    <p><input type="submit" value="Распровести" class="btn btn-primary"></p>
+</form>
+
+{% endblock %}

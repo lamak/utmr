@@ -65,13 +65,18 @@ def last_date(date_string: str):
 
 
 def parse_utm2(utm_url: str):
+    # Пробуем подключиться, прочитать версию.
+    # Если версия есть, пробуем парсить страницу как новую,
+    # Если версии нет, то пробуем старой.
+    # Если не получилось, попробуем пинг и напишем есть связь или нет
+
     fsrar, pki_date, gost_date, status_string, license_string, cheque_date, comment, version = '', '', '', '', '', '', '', ''
     version_url = utm_url + '/info/version'
     try:
         g_utm = Grab(connect_timeout=100)
         g_utm.go(utm_url)
-        ver = requests.get(version_url)
-        if len(ver.text) < 10:
+        ver = requests.get(version_url, timeout = 0.1)
+        if ver.status_code == 200:
             try:
                 status_string = g_utm.doc.select('//*[@id="home"]/div[2]/div[2]').text()
                 license_string = g_utm.doc.select('//*[@id="home"]/div[3]/div[2]').text()
@@ -119,7 +124,6 @@ def parse_utm2(utm_url: str):
             if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
                 cheque_date = 'OK'
     except:
-        # comment += 'Не удалось определить версию '
         if ping(utm_url):
             comment += 'Связь есть'
         else:

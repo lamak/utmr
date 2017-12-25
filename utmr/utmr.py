@@ -75,7 +75,7 @@ def parse_utm2(utm_url: str):
     try:
         g_utm = Grab(connect_timeout=100)
         g_utm.go(utm_url)
-        ver = requests.get(version_url, timeout = 0.1)
+        ver = requests.get(version_url)
         if ver.status_code == 200:
             try:
                 status_string = g_utm.doc.select('//*[@id="home"]/div[2]/div[2]').text()
@@ -168,7 +168,7 @@ def parse_utm(utm_url: str):
 
 
 def ping(host: str) -> bool:
-    return not os.system('ping %s -n 1 > NUL' % (host,))
+    return not os.system('ping %s -n 4 > NUL' % (host,))
 
 
 def match_id(select_list: tuple) -> tuple:

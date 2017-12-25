@@ -64,35 +64,107 @@ def last_date(date_string: str):
     return re.findall('\d{4}-\d{2}-\d{2}', date_string)[-1]
 
 
-def parse_utm(utm_url: str):
-    from datetime import datetime
-    fsrar, pki_date, gost_date, status_string, license_string, cheque_date = '', '', '', '', '', ''
+def parse_utm2(utm_url: str):
+    fsrar, pki_date, gost_date, status_string, license_string, cheque_date, comment, version = '', '', '', '', '', '', '', ''
+    version_url = utm_url + '/info/version'
     try:
         g_utm = Grab(connect_timeout=100)
         g_utm.go(utm_url)
+        ver = requests.get(version_url)
+        if len(ver.text) < 10:
+            try:
+                status_string = g_utm.doc.select('//*[@id="home"]/div[2]/div[2]').text()
+                license_string = g_utm.doc.select('//*[@id="home"]/div[3]/div[2]').text()
+                cheque_string = g_utm.doc.select('// *[@id="home"]/div[5]/div[2]').text()
+                gost_string = g_utm.doc.select('//*[@id="home"]/div[7]/div[2]').text()
+                pki_string = g_utm.doc.select('//*[@id="home"]/div[6]/div[2]').text()
+                version = g_utm.doc.select('//*[@id="home"]/div[1]/div[2]').text()
+                fsrar_id = g_utm.doc.select('//*[@id="RSA"]/div[2]').text()
+
+            except:
+                comment += 'Не найдены все элементы на странице '
+            try:
+                fsrar = fsrar_id.split(' ')[1].split('-')[2]
+                pki_date = last_date(pki_string)
+                gost_date = last_date(gost_string)
+                if 'RSA сертификат pki.fsrar.ru соответствует контуру' in status_string: status_string = 'OK'
+                if 'Лицензия на вид деятельности действует' in license_string: license_string = 'OK'
+            except:
+                comment += 'Не удалось определить ФСРАР, даты ключей '
+            try:
+                cheque_date = last_date(cheque_string)
+            except:
+                cheque_date = 'OK'
+            if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
+                cheque_date = 'OK'
+        else:
+            try:
+                gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
+                pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
+                status_string = g_utm.doc.select('//*[@id="home"]/pre[2]/img/@alt').text()
+                license_string = g_utm.doc.select('//*[@id="home"]/pre[3]/img/@alt').text()
+                cheque_string = g_utm.doc.select('//*[@id="home"]/pre[5]').text()
+            except:
+                comment += 'Не найдены все элементы на странице '
+            try:
+                fsrar = pki_string.split(' ')[1].split('-')[2]
+                pki_date = last_date(pki_string)
+                gost_date = last_date(gost_string)
+            except:
+                comment += 'Не удалось определить ФСРАР, даты ключей '
+            try:
+                cheque_date = last_date(cheque_string)
+            except:
+                cheque_date = 'OK'
+            if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
+                cheque_date = 'OK'
+    except:
+        # comment += 'Не удалось определить версию '
+        if ping(utm_url):
+            comment += 'Связь есть'
+        else:
+            comment += 'Нет связи'
+    return fsrar, pki_date, gost_date, status_string, license_string, cheque_date, comment, version
+
+
+def parse_utm(utm_url: str):
+    from datetime import datetime
+    fsrar, pki_date, gost_date, status_string, license_string, cheque_date = '', '', '', '', '', ''
+    host = utm_url[7:-5]
+    if ping(host):
         try:
-            gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
-            pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
-            status_string = g_utm.doc.select('//*[@id="home"]/pre[2]/img/@alt').text()
-            license_string = g_utm.doc.select('//*[@id="home"]/pre[3]/img/@alt').text()
-            cheque_string = g_utm.doc.select('//*[@id="home"]/pre[5]').text()
-        except:
-            pass
-        try:
-            fsrar = pki_string.split(' ')[1].split('-')[2]
-            pki_date = last_date(pki_string)
-            gost_date = last_date(gost_string)
-        except:
-            pass
-        try:
-            cheque_date = last_date(cheque_string)
-        except:
-            cheque_date = 'OK'
-        if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
-            cheque_date = 'OK'
-    except GrabError:
-        flash('Ошибка подключения к УТМ ', utm_url)
+            g_utm = Grab(connect_timeout=100)
+            g_utm.go(utm_url)
+            try:
+                gost_string = g_utm.doc.select('//*[@id="home"]/pre[7]').text()
+                pki_string = g_utm.doc.select('//*[@id="home"]/pre[6]').text()
+                status_string = g_utm.doc.select('//*[@id="home"]/pre[2]/img/@alt').text()
+                license_string = g_utm.doc.select('//*[@id="home"]/pre[3]/img/@alt').text()
+                cheque_string = g_utm.doc.select('//*[@id="home"]/pre[5]').text()
+            except:
+                pass
+            try:
+                fsrar = pki_string.split(' ')[1].split('-')[2]
+                pki_date = last_date(pki_string)
+                gost_date = last_date(gost_string)
+            except:
+                pass
+            try:
+                cheque_date = last_date(cheque_string)
+            except:
+                cheque_date = 'OK'
+            if cheque_date == datetime.strftime(datetime.now(), "%Y-%m-%d"):
+                cheque_date = 'OK'
+        except GrabError:
+            flash('Ошибка подключения к УТМ ', utm_url)
+    else:
+        flash('Нет связи с сервером ', utm_url)
+
     return fsrar, pki_date, gost_date, status_string, license_string, cheque_date
+
+
+def ping(host: str) -> bool:
+    return not os.system('ping %s -n 1 > NUL' % (host,))
 
 
 def match_id(select_list: tuple) -> tuple:
@@ -209,8 +281,8 @@ def search_ticket(query: str, log_dir: str):
                         for line in file:
                             if query in line:
                                 counter_hit += 1
-                                with open(path, encoding="utf8") as myfile:
-                                    data = myfile.read().replace('\n', '<br> ')
+                                with open(path, encoding="utf8") as ticket_file:
+                                    data = ticket_file.read().replace('\n', '<br> ')
                                 megalist.append([f, data])
 
                                 # tree = ET.parse(path)
@@ -390,7 +462,7 @@ def status():
     megalist = []
     if request.method == 'POST':
         for i, site in enumerate(utmlist):
-            megalist.append((site[0], site[1], site[2], site[3]) + parse_utm(site[2]))
+            megalist.append((site[0], site[1], site[2], site[3]) + parse_utm2(site[2]))
         return render_template('status.html',
                                megalist=megalist,
                                title='Статус УТМ',

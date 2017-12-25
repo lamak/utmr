@@ -16,9 +16,11 @@
             <th>ФСРАР ИД</th>
             <th>Дата PKI</th>
             <th>Дата ГОСТ</th>
-            <th>Последний чек</th>
+            <th>Версия</th>
+            <th>Чеки</th>
             <th>Статус</th>
             <th>Лицензия</th>
+            <th>Ошибка</th>
         </tr>
         </thead>
         <tbody>
@@ -29,12 +31,14 @@
                 <td>{{ x[4] }}</td>
                 <td>{{ x[5] }}</td>
                 <td>{{ x[6] }}</td>
+                <td>{{ x[11] }}</td>
                 <td>{% if x[9] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
                     <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING"> {{ x[9] }} {% endif %}</td>
                 <td>{% if x[7] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
                     <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
                 <td>{% if x[8] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
                     <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
+                <td>{{ x[10] }}</td>
             </tr>
         {% endfor %}
         </tbody>

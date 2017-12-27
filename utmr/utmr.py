@@ -60,6 +60,19 @@ class ChequeForm(FlaskForm):
                                              validators.Length(min=1, max=8, message='Слишком большое число')])
 
 
+def docs_counter(utm_url: str):
+    from xml.dom.minidom import parseString
+    docs_in, docs_out = '', ''
+    try:
+        xml_in = parseString(requests.get(utm_url + '/opt/in').text)
+        docs_in = len(xml_in.getElementsByTagName('url'))
+
+        xml_out = parseString(requests.get(utm_url + '/opt/out/total').text)
+        docs_out = int(xml_out.getElementsByTagName('total')[0].firstChild.nodeValue)
+    except:
+        pass
+    return docs_in, docs_out
+
 def last_date(date_string: str):
     return re.findall('\d{4}-\d{2}-\d{2}', date_string)[-1]
 
@@ -466,7 +479,7 @@ def status():
     megalist = []
     if request.method == 'POST':
         for i, site in enumerate(utmlist):
-            megalist.append((site[0], site[1], site[2], site[3]) + parse_utm2(site[2]))
+            megalist.append((site[0], site[1], site[2], site[3]) + parse_utm2(site[2]) + docs_counter(site[2]) )
         return render_template('status.html',
                                megalist=megalist,
                                title='Статус УТМ',

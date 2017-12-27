@@ -20,6 +20,8 @@
             <th>Чеки</th>
             <th>Статус</th>
             <th>Лицензия</th>
+            <th>IN</th>
+            <th>OUT</th>
             <th>Ошибка</th>
         </tr>
         </thead>
@@ -38,6 +40,8 @@
                     <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
                 <td>{% if x[8] == 'OK' %} <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> {% else %}
                     <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  {% endif %}</td>
+                <td>{{ x[12] }}</td>
+                <td>{{ x[13] }}</td>
                 <td>{{ x[10] }}</td>
             </tr>
         {% endfor %}

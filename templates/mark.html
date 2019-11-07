@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+
+<form action="" method="post" name="send" role="form">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+        <label for="mark">Акцизная марка</label>
+        <p>{{ form.mark(class="form-control") }}</p>
+        <span class="help-block">Укажите марку для проверки</span>
+        <label for="fsrar">Выберите УТМ торговый точки</label>
+        <p>{{ form.fsrar(class="form-control") }}</p>
+        <span class="help-block">Будет выполнена проверка в локальном справочнике УТМ</span>
+
+    </div>
+    <p><input type="submit" value="Проверить" class="btn btn-primary"></p>
+</form>
+
+{% endblock %}
+

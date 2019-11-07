@@ -1,0 +1,16 @@
+<ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/ConfirmRepealWB" Version="1.0">
+    <ns0:Owner>
+        <ns0:FSRAR_ID>030000382127</ns0:FSRAR_ID>
+    </ns0:Owner>
+    <ns0:Document>
+        <ns0:ConfirmRepealWB>
+            <ns1:Header>
+                <ns1:IsConfirm>Rejected</ns1:IsConfirm>
+                <ns1:ConfirmNumber>0001</ns1:ConfirmNumber>
+                <ns1:ConfirmDate>2019-11-01</ns1:ConfirmDate>
+                <ns1:WBRegId>TTN-0328702445</ns1:WBRegId>
+                <ns1:Note>Rejected</ns1:Note>
+            </ns1:Header>
+        </ns0:ConfirmRepealWB>
+    </ns0:Document>
+</ns0:Documents>

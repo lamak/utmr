@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    <p class="lead">Запрос распроведения накладной и отмена актов постановки списания со склада</p>
+    <form action="" method="post" name="send" role="form">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            <label for="wbregid">Номер документа</label>
+            <p>{{ form.wbregid(class="form-control") }}</p>
+            <span class="help-block">Укажите полный номер TTN/WOF/INV для распроведения, например TTN-1234567890</span>
+
+            <label for="r_type">Тип</label>
+            <p>{{ form.r_type(class="form-control") }}</p>
+            <span class="help-block">Выберите тип документа</span>
+
+            <label for="fsrar">Выберите УТМ торговый точки</label>
+            <p>{{ form.fsrar(class="form-control") }}</p>
+            <span class="help-block">После отправки запроса аткы списания или постановки будут автоматически отменены, для TTN необходимо подтверждение второй стороны</span>
+        </div>
+        <p><input type="submit" value="Выполнить" class="btn btn-primary"></p>
+    </form>
+
+{% endblock %}

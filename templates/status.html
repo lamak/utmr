@@ -1,0 +1,86 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}
+        <p class=error><strong>Error:</strong> {{ error }}{% endif %}
+<form action="" method="post" name="send" role="form">
+    <span class="help-block">
+
+     {% if not results %} Запрос выполняется около 30 секунд
+     {% else %}Фильтр - при ошибке рекомендуется выполнить обновление настроек УТМ, некоторые марки могут не проходить
+     {% endif %}</span>
+    <p>
+        <input type="submit" name="gost" value="Обновить (ГОСТ)" class="btn btn-primary">
+        <input type="submit" name="fsrar" value="Обновить (ФСРАР)" class="btn btn-primary">
+        <input type="submit" name="filter" value="Обновить (Фильтр)" class="btn btn-primary">
+
+    </p>
+    </form>
+    {% if results %} 
+    <table class="table table-hover">
+        <thead>
+        <tr>
+            <th>ТТ</th>
+            <th>Сервер</th>
+            <th>Организация</th>
+            <th>ФСРАР ИД</th>
+            <th>ГОСТ</th>
+            <th>Чеки</th>
+            <th>Статус</th>
+            <th>Лиц</th>
+            <th>Фильтр</th>
+            <th>Build</th>
+            
+            {% if err %} 
+                <th>Ошибка</th>
+            {% endif %}
+        </tr>
+        </thead>
+        <tbody>
+        {% for u in results %}
+            <tr>
+                <td><a href="{{ u.url }}">{{ u.title }}</a></td>
+                <td>{{ u.host }}</td>
+                <td>{{ u.legal }}</td>
+                <td>{{ u.fsrar }}</td>
+                <td title="{{ u.pki }}">{{ u.gost }}</td>
+                <td>
+                    {% if u.cheques == 'OK' %} 
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% else %}
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING"> 
+                    {{ u.cheques }} {% endif %}
+                </td>
+                
+                <td>
+                    {% if u.status == True %} 
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% else %}
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if u.license == True %} 
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% else %}
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if u.filter == True %} 
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% else %}
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  
+                    {% endif %}
+                </td>
+                <td>{{ u.build }}</td>
+                {% if err %} 
+                    <td>{{ u.error }}</td>
+                {% endif %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+<ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/RequestRepealAWO" Version="1.0">
+    <ns0:Owner>
+        <ns0:FSRAR_ID>030000382127</ns0:FSRAR_ID>
+    </ns0:Owner>
+    <ns0:Document>
+        <ns0:RequestRepealAWO>
+            <ns1:ClientId>030000382127</ns1:ClientId>
+            <ns1:RequestNumber>1</ns1:RequestNumber>
+            <ns1:RequestDate>2019-11-01T17:40:23</ns1:RequestDate>
+            <ns1:AWORegId>AWO</ns1:AWORegId>
+        </ns0:RequestRepealAWO>
+    </ns0:Document>
+</ns0:Documents>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='bootstrap.min.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='eagle.png') }}"/>
+    <script src="{{ url_for('static', filename='jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='bootstrap.min.js') }}"></script>   
+</head>
+<body>
+<div class="navbar navbar-default navbar-static-top" role="navigation">
+    <div class="container">
+        <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li><a href="{{ url_for('status') }}">Статус УТМ</a></li>
+                <li><a href="{{ url_for('get_utm_errors') }}">Ошибки УТМ</a></li>
+                <li><a href="{{ url_for('check_mark') }}">Проверка Марки в УТМ</a></li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">TTN<span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="{{ url_for('ttn') }}">Запросить TTN</a></li>
+                        <li><a href="{{ url_for('reject') }}">Отклонить TTN</a></li>
+                        <li><a href="{{ url_for('requestrepeal') }}">Запросить распроведение</a></li>
+                        <li><a href="{{ url_for('wbrepealconfirm') }}">Подтвердить распроведение TTN</a></li>
+                    </ul>
+                </li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">NATTN<span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="{{ url_for('get_nattn') }}">Запросить необработанные TTN</a></li>
+                        <li><a href="{{ url_for('check_nattn') }}">Проверить необработанные TTN</a></li>
+                    </ul>
+                </li>
+                <li><a href="{{ url_for('cheque') }}">Отправка чека</a></li>
+                <li><a href="{{ url_for('service_clean') }}">Очистить входящие TTNFORMREG</a></li>
+                <li><a href="{{ url_for('get_tickets') }}">Тикеты</a></li>
+                <li><a href="{{ url_for('get_rests') }}">Остатки</a></li>
+
+                
+
+        </div><!--/.nav-collapse -->
+    </div>
+</div>
+<div class="container">
+    <div class="page-header">
+        <h1>{{ title }}</h1>
+    </div>
+    {% for message in get_flashed_messages() %}
+        <div class="alert alert-info" role="alert">{{ message }}</div>
+    {% endfor %}
+    {% block body %}{% endblock %}
+</div>
+</body>
+</html>

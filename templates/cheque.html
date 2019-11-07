@@ -9,26 +9,36 @@
         <div class="form-group">
             <p class="lead">1. Выбираем УТМ для отправки</p>
             <span class="help-block">Не забудьте выбрать правильную ТТ</span>
-            <label for="utmlist">Выберите УТМ торговый точки</label>
-            <select name="utmlist" class="form-control">
-                {% for x in server_list %}
-                    <option value="{{ x[0] }}"{% if loop.first %} SELECTED{% endif %}>{{ x[3] }}</option>
-                {% endfor %}
-            </select>
+            <label for="fsrar">Выберите УТМ торговый точки</label>
+            <p>{{ form.fsrar(class="form-control") }}</p>
             <hr>
-            <p class="lead">2. Заполняем чек</p>
-            <span class="help-block">Указываем номер и смену чека на возврат, с кассы магазина (если алкогольных несколько, берем с первой)</span>
+            <p class="lead">2. Заполняем реквизиты ТТ</p>
+            <span class="help-block">Указываем ИНН, КПП</span>
 
             <div class="row">
                 <div class="col-xs-6">
-                    <label for="shift">Текущая смена</label>{{ render_field(form.shift) }}
+                    <label for="inn">ИНН</label>{{ render_field(form.inn) }}
                 </div>
                 <div class="col-xs-6">
+                    <label for="kpp">КПП</label>{{ render_field(form.kpp) }}
+                </div>
+            </div>
+            <p class="lead">3. Заполняем чек</p>
+            <span class="help-block">Указываем фискальный номер кассы (длинный, лучше взять из чека ФСРАР), номер и смену чека на возврат (текущие)</span>
+
+            <div class="row">
+                <div class="col-xs-4">
+                    <label for="kassa">Номер кассы</label>{{ render_field(form.kassa) }}
+                </div>
+                <div class="col-xs-4">
+                    <label for="shift">Текущая смена</label>{{ render_field(form.shift) }}
+                </div>
+                <div class="col-xs-4">
                     <label for="number">Текущий чек</label>{{ render_field(form.number) }}
                 </div>
             </div>
             <hr>
-            <p class="lead">3. Заполняем акциз</p>
+            <p class="lead">4. Заполняем акцизную марку</p>
             <div class="row">
                 <div class="col-xs-8">
                     <label for="bottle">Акцизная марка </label>{{ render_field(form.bottle) }} <span class="help-block">Длинный код акцизной марки можно считать через Супермаг</span>

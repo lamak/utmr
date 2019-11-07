@@ -1,0 +1,7 @@
+lxml
+xmltodict
+Flask
+flask_wtf
+grab
+requests
+pycurl

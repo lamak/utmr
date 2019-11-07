@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<ns:Documents xmlns="http://fsrar.ru/WEGAIS/QueryFilter" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" Version="1.0">
+    <ns:Owner>
+        <ns:FSRAR_ID>020000314999</ns:FSRAR_ID>
+    </ns:Owner>
+    <ns:Document>
+        <ns:ReplyFilter>
+            <result>Штрихкод не найден</result>
+            <bc>171200711310831018001JBHXSKHXTFKOTBJEVP3I4OQNWIKF7MCDGGKETCPXQPZ7K2LK2ANKNWM7KWUKFDW3USBHZ5DY5KYPYTGM6YFLHSMOHFN53SEIWBVLFRUURV6VOXO6GN5VZF27DRXE6DXYA</bc>
+        </ns:ReplyFilter>
+    </ns:Document>
+</ns:Documents>

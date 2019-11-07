@@ -1,13 +1,13 @@
 <ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/QueryParameters" Version="1.0">
 <ns0:Owner>
-<ns0:FSRAR_ID>020000623571</ns0:FSRAR_ID>
+<ns0:FSRAR_ID>020000314999</ns0:FSRAR_ID>
 </ns0:Owner>
 <ns0:Document>
 <ns0:QueryNATTN>
 <ns1:Parameters>
 <ns1:Parameter>
 <ns1:Name>&#1050;&#1054;&#1044;</ns1:Name>
-<ns1:Value>020000623571</ns1:Value>
+<ns1:Value>020000314999</ns1:Value>
 </ns1:Parameter>
 </ns1:Parameters>
 </ns0:QueryNATTN>

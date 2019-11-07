@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    <p class="lead">Подтверждаем запрос на распроведение накладной (возврат поставщику)</p>
+    <form action="" method="post" name="send" role="form">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+        <label for="wbregid">TTN</label>
+        <p>{{ form.wbregid(class="form-control") }}</p>
+        <span class="help-block">Укажите полный номер TTN для подтверждения, например TTN-1234567890</span>
+
+        <label for="is_confirm">Ответ</label>
+        <p>{{ form.is_confirm(class="form-control") }}</p>
+
+        <label for="fsrar">Выберите УТМ торговый точки</label>
+        <p>{{ form.fsrar(class="form-control") }}</p>
+        <span class="help-block">Будет отправлен ответ на подтверждение распроведения (WBREPEALCONFIRM) завершенного документа.
+            <br>Убедитесь, что запрос на распроведение отправлен поставщиком.
+            <br>После распроведения, возврат можно будет отозвать (с нашей стороны) или отклонить (поставщик), после чего возврат вернется на остатки.</span>
+
+    </div>
+    <p><input type="submit" value="Выполнить" class="btn btn-primary"></p>
+</form>
+
+{% endblock %}s

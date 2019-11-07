@@ -1,0 +1,10 @@
+<ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/QueryFilter" Version="1.0">
+  <ns0:Owner>
+    <ns0:FSRAR_ID>020000293207</ns0:FSRAR_ID>
+  </ns0:Owner>
+  <ns0:Document>
+    <ns0:QueryFilter>
+      <ns1:bc>101200077803571018001K4N3T2AMT6H46NXNLTR5Z3PFNIF24GSSQ2FVEKUXQV2X4I4YZKUUIDUCX5AZZGP7CJBF66UWWIVZ4G3JHP6PYA37RDA3OQUNVZZWLEPFT5CEYMPAKBVZBMDNQZ2DCYMNI</ns1:bc>
+    </ns0:QueryFilter>
+  </ns0:Document>
+</ns0:Documents>

@@ -1,0 +1,18 @@
+<ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/ActTTNSingle_v3" Version="1.0">   
+	<ns0:Owner>         
+		<ns0:FSRAR_ID>020000737674</ns0:FSRAR_ID>   
+	</ns0:Owner>     
+	<ns0:Document>             
+	<ns0:WayBillAct_v3>             
+		<ns1:Header>   
+			<ns1:IsAccept>Rejected</ns1:IsAccept>
+			<ns1:ACTNUMBER>1</ns1:ACTNUMBER>         
+			<ns1:ActDate>2019-10-09</ns1:ActDate>         
+			<ns1:WBRegId>TTN-0328610802</ns1:WBRegId>   
+			<ns1:Note>Reject</ns1:Note>       
+		</ns1:Header>         
+		<ns1:Content>         
+		</ns1:Content>         
+	</ns0:WayBillAct_v3>   
+</ns0:Document> 
+</ns0:Documents>

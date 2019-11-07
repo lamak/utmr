@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    <p class="lead">Показывает остатки по алкокодам из последниx запросов</p>
+
+    <form action="" method="post" name="send" role="form">
+
+        <label for="alccode">Алкокод</label>
+        <p>{{ form.alccode(class="form-control") }}</p>
+        <span class="help-block">Фильтр по алкокоду, необязателен</span>
+
+        <label for="limit">Кол-во последних запросов</label>
+        <p>{{ form.limit(class="form-control") }}</p>
+        <span class="help-block">Для точек работающих не в STORGCO, может быть долго, т.к. идет тяжелых запросов остатков с ТТ. Максимальное количество 50, по умолчанию 10</span>
+
+        <label for="fsrar">Выберите УТМ торговый точки</label>
+        <p>{{ form.fsrar(class="form-control") }}</p>
+        <br>
+
+        <p><input type="submit" value="Получить" class="btn btn-primary"></p>
+    </form>
+    {% if results %}
+        <h1>Результаты:</h1>
+
+    {% for alccode, rests in results.items() %}
+            <table class="table table-hover">
+            <thead>
+                <h3>Алкокод: {{ alccode }}</h3>
+            <tr>
+                <th>Дата</th>
+                <th>Количество</th>
+            </tr>
+            </thead>
+            <tbody>
+
+            {% for date,quantity  in rests.items() %}
+                <tr><td>{{ date }}</td><td>{{ quantity }}</td></tr>
+            {% endfor %}
+            </tbody>
+
+    {% endfor %}
+    {% endif %}
+
+
+{% endblock %}

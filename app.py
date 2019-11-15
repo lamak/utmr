@@ -209,7 +209,7 @@ def parse_utm(utm: Utm):
             pki_string = homepage.doc.select('//*[@id="home"]/div[8]/div[2]').text()
             result.pki = last_date(pki_string)
             result.gost = last_date(gost_string)
-        except DataNotFound:
+        except (IndexError, DataNotFound):
             result.error.append('Не найдены сроки ключей\n')
 
         # Самодиагностика

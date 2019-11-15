@@ -320,18 +320,6 @@ def clean_documents(url: str):
     return counter
 
 
-def request_nattn(fsrar: str, url: str):
-    file = 'nattn.xml'
-    if request.method == 'POST':
-        counter = 0
-        make_xml(fsrar, fsrar, file)
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
-        url = str(url) + '/opt/in/QueryNATTN'
-        res = send_xml(url, files)
-
-    return res
-
-
 def find_last_nattn(url: str) -> str:
     url_out = url + '/opt/out/ReplyNATTN'
     try:

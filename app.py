@@ -172,7 +172,7 @@ def validate_filename(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def get_xml(filename: str) -> str:
+def get_xml_template(filename: str) -> str:
     return os.path.join('xml/', filename)
 
 
@@ -294,13 +294,14 @@ def create_unique_xml(fsrar: str, content: str, path: str) -> str:
     return path
 
 
-def make_mark_xml(fsrar: str, mark: str, filename: str):
-    path = get_xml(filename)
+def create_unique_mark_xml(fsrar: str, mark: str, path: str) -> str:
     tree = ET.parse(path)
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0].text = mark
+    path = os.path.join(app.config['RESULT_FOLDER'], f'QueryFilter_{uuid.uuid4()}.xml')
     tree.write(path)
+    return path
 
 
 def send_xml(url: str, files):
@@ -393,6 +394,8 @@ def ttn():
 
     if request.method == 'POST' and form.validate_on_submit():
         file = 'ttn.xml'
+        xml = get_xml_template(file)
+
         wbregid = request.form['wbregid'].strip()
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
@@ -420,7 +423,7 @@ def reject():
 
     if request.method == 'POST' and form.validate_on_submit():
         file = 'reject.xml'
-        filepath = get_xml(file)
+        filepath = get_xml_template(file)
 
         wbregid = request.form['wbregid'].strip()
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -453,7 +456,7 @@ def wbrepeal():
     }
     if request.method == 'POST' and form.validate_on_submit():
         file = 'wbrepeal.xml'
-        filepath = get_xml(file)
+        filepath = get_xml_template(file)
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -503,7 +506,7 @@ def requestrepeal():
         }
         repeal_type = request.form['r_type']
         repeal_data = options.get(repeal_type)
-        filepath = get_xml(repeal_data['file'])
+        filepath = get_xml_template(repeal_data['file'])
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -538,7 +541,7 @@ def wbrepealconfirm():
 
     if request.method == 'POST' and form.validate_on_submit():
         file = 'wbrepealconfirm.xml'
-        filepath = get_xml(file)
+        filepath = get_xml_template(file)
         wbregid = request.form['wbregid'].strip()
         is_confirm = request.form['is_confirm']
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -580,6 +583,8 @@ def get_nattn():
 
     if request.method == 'POST':
         file = 'nattn.xml'
+        xml = get_xml_template(file)
+
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
 
@@ -710,10 +715,10 @@ def cheque():
         # done, writing to xml file
         file = 'cheque.xml'
         tree = ET.ElementTree(document)
-        tree.write(get_xml(file), encoding='utf-8', xml_declaration=True)
+        tree.write(get_xml_template(file), encoding='utf-8', xml_declaration=True)
 
         # send xml and write log
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(get_xml_template(file), 'rb'), 'application/xml')}
         result = send_xml_cheque(utm.xml_url(), files)
 
         log = f"Cheque: ТТ {utm.title} [{utm.fsrar}]: {request.form['bottle']}  цена: {request.form['price']}: {result}"
@@ -737,14 +742,15 @@ def check_mark():
     if request.method == 'POST' and form.validate_on_submit():
         res = None
         file = 'queryfilter.xml'
+        xml = get_xml_template(file)
         url_suffix = '/opt/in/QueryFilter'
         mark = request.form['mark'].strip()
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
 
-        make_mark_xml(utm.fsrar, mark, file)
+        query = create_unique_mark_xml(utm.fsrar, mark, file)
         url = utm.url() + url_suffix
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(query, 'rb'), 'application/xml')}
         try:
             r = requests.post(url, files=files)
             for sign in ET.fromstring(r.text).iter('{http://fsrar.ru/WEGAIS/QueryFilter}result'):

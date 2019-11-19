@@ -21,8 +21,13 @@ from wtforms.validators import DataRequired, Length, Regexp
 
 UPLOAD_FOLDER = 'uploads'
 RESULT_FOLDER = 'results'
-
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'xls', 'xlsx', 'csv'}
+DOMAIN = 'severotorg.local'
+UTM_PORT = '8080'
+UTM_LOG = 'c$/utm/transporter/l/transport_transaction.log'
+CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE') or 'sku-body-template.xlsx'
+CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH') or './'
+CONVERTER_DATE_FORMAT = '%Y%m%d'
+ALLOWED_EXTENSIONS = {'xlsx', }
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -30,15 +35,7 @@ app.config['RESULT_FOLDER'] = RESULT_FOLDER
 
 app.secret_key = 'dev'
 
-logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def get_xml(filename: str) -> str:
-    return os.path.join('xml/', filename)
+logging.basicConfig(filename='log', level=logging.WARNING, format='%(asctime)s %(levelname)s: %(message)s')
 
 
 class Utm:
@@ -59,7 +56,7 @@ class Utm:
         return f'{self.fsrar} {self.title}'
 
     def url(self):
-        return f'http://{self.host}.severotorg.local:8080'
+        return f'http://{self.host}.{DOMAIN}:{UTM_PORT}'
 
     def build_url(self):
         return self.url() + '/?b'
@@ -171,6 +168,14 @@ class ChequeForm(FsrarForm):
     ])
 
 
+def validate_filename(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_xml(filename: str) -> str:
+    return os.path.join('xml/', filename)
+
+
 def get_instance(fsrar: str, utms: List[Utm]) -> Utm:
     """ Получаем УТМ из формы по ФСРАР ИД"""
     return next((x for x in utms if x.fsrar == fsrar), None)
@@ -181,22 +186,17 @@ def get_limit(field: str, max_limit: int, default_limit: int) -> int:
     return int(field) if field.isdigit() and int(field) < max_limit else default_limit
 
 
-def docs_counter(utm_url: str):
-    from xml.dom.minidom import parseString
-    docs_in, docs_out = '', ''
-    try:
-        xml_in = parseString(requests.get(utm_url + '/opt/in').text)
-        docs_in = len(xml_in.getElementsByTagName('url'))
-
-        xml_out = parseString(requests.get(utm_url + '/opt/out/total').text)
-        docs_out = int(xml_out.getElementsByTagName('total')[0].firstChild.nodeValue)
-    except:
-        pass
-    return docs_in, docs_out
-
-
 def last_date(date_string: str):
     return re.findall('\d{4}-\d{2}-\d{2}', date_string)[-1]
+
+
+def humanize_date(iso_date: str) -> str:
+    try:
+        iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S.%f')
+    except ValueError:
+        iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S')
+
+    return (iso_date + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M')
 
 
 def parse_utm(utm: Utm):
@@ -206,7 +206,6 @@ def parse_utm(utm: Utm):
     try:
         homepage.go(utm.build_url())
         gostpage.go(utm.gost_url())
-        # todo: блоки нужно проверять явно на совпадение заголовка, нумерация может измениться
         # версия
         try:
             result.version = homepage.doc.select('//*[@id="home"]/div[1]/div[2]').text()
@@ -377,6 +376,11 @@ def parse_nattn(url: str):
     return None
 
 
+@app.route('/')
+def index():
+    return redirect(url_for('status'))
+
+
 @app.route('/ttn', methods=['GET', 'POST'])
 def ttn():
     form = TTNForm()
@@ -414,19 +418,21 @@ def reject():
 
     if request.method == 'POST' and form.validate_on_submit():
         file = 'reject.xml'
+        filepath = get_xml(file)
+
         wbregid = request.form['wbregid'].strip()
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
 
         url = utm.url() + '/opt/in/WayBillAct_v3'
 
-        tree = ET.parse(get_xml(file))
+        tree = ET.parse(filepath)
         root = tree.getroot()
         root[0][0].text = utm.fsrar
         root[1][0][0][2].text = str(date.today())
         root[1][0][0][3].text = wbregid
-        tree.write(get_xml(file))
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+        tree.write(filepath)
+        files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
         log = f'WayBillAct_v3: {wbregid} отправлен отзыв/отказ от {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
         logging.info(log)
@@ -445,6 +451,7 @@ def wbrepeal():
     }
     if request.method == 'POST' and form.validate_on_submit():
         file = 'wbrepeal.xml'
+        filepath = get_xml(file)
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -452,14 +459,14 @@ def wbrepeal():
 
         url = utm.url() + '/opt/in/RequestRepealWB'
 
-        tree = ET.parse(get_xml(file))
+        tree = ET.parse(filepath)
         root = tree.getroot()
         root[0][0].text = utm.fsrar
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
-        tree.write(get_xml(file))
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+        tree.write(filepath)
+        files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
 
         err = send_xml(url, files)
         log = f'RequestRepealWB: {wbregid} отправлен запрос на распроведение {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
@@ -494,7 +501,7 @@ def requestrepeal():
         }
         repeal_type = request.form['r_type']
         repeal_data = options.get(repeal_type)
-        file = get_xml(repeal_data['file'])
+        filepath = get_xml(repeal_data['file'])
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -502,14 +509,14 @@ def requestrepeal():
         form.fsrar.data = utm.fsrar
         form.r_type.data = repeal_type
 
-        tree = ET.parse(file)
+        tree = ET.parse(filepath)
         root = tree.getroot()
         root[0][0].text = utm.fsrar
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
-        tree.write(file)
-        files = {'xml_file': (repeal_data['file'], open(file, 'rb'), 'application/xml')}
+        tree.write(filepath)
+        files = {'xml_file': (repeal_data['file'], open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
         log = f'RequestRepeal{repeal_type}: {wbregid} отправлен запрос на распроведение {repeal_type} {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
         flash(log)
@@ -529,6 +536,7 @@ def wbrepealconfirm():
 
     if request.method == 'POST' and form.validate_on_submit():
         file = 'wbrepealconfirm.xml'
+        filepath = get_xml(file)
         wbregid = request.form['wbregid'].strip()
         is_confirm = request.form['is_confirm']
         utm = get_instance(request.form['fsrar'], utmlist)
@@ -539,7 +547,7 @@ def wbrepealconfirm():
 
         request_date = datetime.now().strftime("%Y-%m-%d")
 
-        tree = ET.parse(get_xml(file))
+        tree = ET.parse(filepath)
         root = tree.getroot()
         root[0][0].text = utm.fsrar
         root[1][0][0][0].text = is_confirm
@@ -547,9 +555,9 @@ def wbrepealconfirm():
         root[1][0][0][3].text = wbregid
         root[1][0][0][4].text = is_confirm
 
-        tree.write(get_xml(file))
+        tree.write(filepath)
 
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+        files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
 
         err = send_xml(url, files)
         log = f'ConfirmRepealWB: {wbregid} подтверждения распроведения {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
@@ -652,12 +660,10 @@ def status():
         'template_name_or_list': 'status.html',
         'title': 'Статус',
     }
-    results = []
     err = False
 
     if request.method == 'POST':
-        for utm in utmlist:
-            results.append(parse_utm(utm))
+        results = [parse_utm(utm) for utm in utmlist]
 
         if 'gost' in request.form:
             results.sort(key=lambda result: result.gost)
@@ -666,7 +672,7 @@ def status():
         elif 'filter' in request.form:
             results.sort(key=lambda result: result.filter)
 
-        params['err'] = any([x.error != '' for x in results])
+        params['err'] = any([res.error != '' for res in results])
         params['results'] = results
 
     return render_template(**params)
@@ -764,27 +770,29 @@ def get_utm_errors():
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
 
-        transport_log = f'//{utm.host}.severotorg.local/c$/utm/transporter/l/transport_transaction.log'
+        transport_log = f'//{utm.host}.{DOMAIN}/{UTM_LOG}'
 
         summary = f'{utm.title} [{utm.fsrar}]'
+        data = []
         results = []
         total = 0
         try:
-            with open(transport_log, encoding="utf8") as f:
-                data = f.readlines()
-                re_error = re.compile('<error>(.*)</error>')
-                for line in data:
-                    if 'Получен чек.' in line:
-                        total += 1
-                    else:
-                        result = re_error.search(line)
-                        if result:
-                            results.append(result.group(0))
-
-                summary = f'{summary}: Всего чеков сегодня: {total}, из них с ошибками {len(results)}'
-
+            with open(transport_log, encoding="utf8") as file:
+                data = file.readlines()
         except FileNotFoundError:
             summary = f'{summary}: недоступен или журнал не найден'
+
+        if data:
+            re_error = re.compile('<error>(.*)</error>')
+            for line in data:
+                if 'Получен чек.' in line:
+                    total += 1
+                else:
+                    result = re_error.search(line)
+                    if result:
+                        results.append(result.groups()[0])
+
+            summary = f'{summary}: Всего чеков сегодня: {total}, из них с ошибками {len(results)}'
 
         params['summary'] = summary
         params['results'] = results
@@ -794,14 +802,6 @@ def get_utm_errors():
 
 @app.route('/rests', methods=['GET', 'POST'])
 def get_rests():
-    def humanize_date(iso_date: str) -> str:
-        try:
-            iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S.%f')
-        except ValueError:
-            iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S')
-
-        return (iso_date + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M')
-
     form = RestsForm()
     params = {
         'template_name_or_list': 'rests.html',
@@ -879,11 +879,6 @@ def get_tickets():
     return render_template(**params)
 
 
-@app.route('/')
-def index():
-    return redirect(url_for('status'))
-
-
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
     form = UploadForm()
@@ -893,25 +888,23 @@ def upload_file():
         'form': form,
     }
     if request.method == 'POST':
-        # check if the post request has the file part
         if 'file' not in request.files:
             flash('No file part')
             return redirect(request.url)
+
         file = request.files['file']
-        # if user does not select file, browser also
-        # submit an empty part without filename
+
         if file.filename == '':
             flash('No selected file')
             return redirect(request.url)
-        if file and allowed_file(file.filename):
+
+        if file and validate_filename(file.filename):
             filename = secure_filename(file.filename)
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             errors = list()
-            date_format = '%Y%m%d'
-            template_file = 'sku-body-template.xlsx'
-            export_date = datetime.strftime(datetime.now() - timedelta(1), date_format)
-            export_path = './'
+
+            export_date = datetime.strftime(datetime.now() - timedelta(1), CONVERTER_DATE_FORMAT)
 
             def insert_or_append(d: dict, k: str, v: str):
                 if d.get(k):
@@ -946,7 +939,7 @@ def upload_file():
                 if imp:
                     for warehouse in imp.keys():
                         exp_filename = f'skubody_{warehouse}_{export_date}.csv'
-                        exp_filepath = os.path.join(export_path, exp_filename)
+                        exp_filepath = os.path.join(CONVERTER_EXPORT_PATH, exp_filename)
                         if os.path.isfile(exp_filepath):
                             with open(exp_filepath, 'r', encoding='utf-8') as f:
                                 csv_data = csv.reader(f, delimiter='¦')
@@ -975,9 +968,9 @@ def upload_file():
                 result = ''
                 if fin:
                     current_row = 7  # first row after header
-                    wb = openpyxl.load_workbook(template_file)
+                    wb = openpyxl.load_workbook(CONVERTER_TEMPLATE_FILE)
                     sh = wb.get_active_sheet()
-                    today = datetime.now().strftime(date_format)
+                    today = datetime.now().strftime(CONVERTER_DATE_FORMAT)
 
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
                     result_path = os.path.join(os.path.join(app.config['RESULT_FOLDER'], result))

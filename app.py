@@ -1,17 +1,21 @@
+import csv
 import logging
 import os
 import re
+import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
 from typing import List
 
+import openpyxl
 import requests
 import xmltodict
-from flask import Flask, request, redirect, render_template, flash, Markup, url_for
+from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
 from flask_wtf import FlaskForm
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
 from weblib.error import DataNotFound
+from werkzeug.utils import secure_filename
 from wtforms import StringField, IntegerField, SelectField
 from wtforms.validators import DataRequired, Length, Regexp
 
@@ -814,7 +818,7 @@ def get_rests():
                         quantity = position.get('rst:Quantity')
                         if search_alccode in ('', alccode):
                             if results.get(alccode, False):
-                                results[alccode][rest_date] = quantitywb
+                                results[alccode][rest_date] = quantity
                             else:
                                 results[alccode] = {rest_date: quantity}
 
@@ -862,3 +866,142 @@ def get_tickets():
 @app.route('/')
 def index():
     return redirect(url_for('status'))
+
+
+UPLOAD_FOLDER = 'uploads'
+RESULT_FOLDER = 'results'
+
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'xls', 'xlsx', 'csv'}
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['RESULT_FOLDER'] = RESULT_FOLDER
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload_file():
+    if request.method == 'POST':
+        # check if the post request has the file part
+        if 'file' not in request.files:
+            flash('No file part')
+            return redirect(request.url)
+        file = request.files['file']
+        # if user does not select file, browser also
+        # submit an empty part without filename
+        if file.filename == '':
+            flash('No selected file')
+            return redirect(request.url)
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            errors = list()
+            date_format = '%Y%m%d'
+            template_file = 'sku-body-template.xlsx'
+            export_date = datetime.strftime(datetime.now() - timedelta(1), date_format)
+            export_path = './'
+
+            def insert_or_append(d: dict, k: str, v: str):
+                if d.get(k):
+                    d[k].append(v)
+                else:
+                    d[k] = [v, ]
+
+            def collect_import_data(filename: str) -> dict:
+                results = dict()
+                try:
+                    wb = openpyxl.load_workbook(filename)
+                    ws = wb.get_active_sheet()
+
+                    # validate worksheet header
+                    if not (ws.cell(1, 2).value == 'SKU' and ws.cell(1, 5).value == 'Код склада'):
+                        errors.append('Не найдены заголовки таблицы')
+                    else:
+                        ws.delete_rows(1)
+                        for r in ws.rows:
+                            article = r[1].value
+                            warehouse = r[4].value
+                            insert_or_append(results, warehouse, article)
+
+                    wb.close()
+                except openpyxl.utils.exceptions.InvalidFileException:
+                    errors.append('Не удалось прочитать файл импорта')
+
+                return results
+
+            def collect_export_results(imp: dict) -> dict:
+                results = dict()
+                if imp:
+                    for warehouse in imp.keys():
+                        exp_filename = f'skubody_{warehouse}_{export_date}.csv'
+                        exp_filepath = os.path.join(export_path, exp_filename)
+                        if os.path.isfile(exp_filepath):
+                            with open(exp_filepath, 'r', encoding='utf-8') as f:
+                                csv_data = csv.reader(f, delimiter='¦')
+                                for row in csv_data:
+                                    article = row[0]
+                                    insert_or_append(results, warehouse, article)
+                        else:
+                            errors.append(f'Место хранения {warehouse}: Файл {exp_filepath} недоступен')
+
+                return results
+
+            def make_difference(imp: dict, exp: dict):
+                results = dict()
+                if imp and exp:
+                    for warehouse, articles in imp.items():
+                        list_imp = articles
+                        list_exp = exp.get(warehouse)
+                        if list_exp is not None:
+                            results[warehouse] = set(list_imp).difference(set(list_exp))
+                        else:
+                            errors.append(f'Место хранения {warehouse} пропущено')
+
+                return results
+
+            def write_down(fin: dict) -> str:
+                result = ''
+                if fin:
+                    current_row = 7  # first row after header
+                    wb = openpyxl.load_workbook(template_file)
+                    sh = wb.get_active_sheet()
+                    today = datetime.now().strftime(date_format)
+
+                    result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
+                    result_path = os.path.join(os.path.join(app.config['RESULT_FOLDER'], result))
+
+                    for wh, articles in fin.items():
+                        idx = 0
+                        for idx, article in enumerate(articles):
+                            sh.cell(current_row + idx, 1).value = article
+                            sh.cell(current_row + idx, 2).value = wh
+                        current_row = current_row + idx
+
+                    wb.save(result_path)
+                    # print(f'Результат записан в файл: {fin_filename}')
+                return result
+
+            import_results = collect_import_data(filepath)
+            export_results = collect_export_results(import_results)
+            finale_results = make_difference(import_results, export_results)
+            result_filename = write_down(finale_results)
+
+            return redirect(url_for('uploaded_file', filename=result_filename))
+    return '''
+    <!doctype html>
+    <title>Upload new File</title>
+    <h1>Upload new File</h1>
+    <form method=post enctype=multipart/form-data>
+      <input type=file name=file>
+      <input type=submit value=Upload>
+    </form>
+    '''
+
+
+@app.route('/results/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['RESULT_FOLDER'], filename)

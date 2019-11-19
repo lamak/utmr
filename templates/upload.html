@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='bootstrap.min.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='eagle.png') }}"/>
+    <script src="{{ url_for('static', filename='jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='bootstrap.min.js') }}"></script>
+</head>
+<body>
+
+<div class="container">
+    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+
+    <div class="header"><br></div>
+    <div class="jumbotron">
+        <h1>Конвертер</h1>
+        <p class="lead">Формирование шаблона для выгрузки в автозаказ на основе входящего документ XLSX</p>
+        <form action="" method="post" name="send" role="form" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                <p>{{ form.file(class="form-control") }}</p>
+            </div>
+            <p><input class="btn btn-lg btn-success" type="submit" value="Выполнить"></p>
+        </form>
+    </div>
+    {% for message in get_flashed_messages() %}
+        <div class="alert alert-info" role="alert">{{ message }}</div>
+    {% endfor %}
+</div>
+</body>
+</html>

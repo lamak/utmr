@@ -16,13 +16,25 @@ from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
-from wtforms import StringField, IntegerField, SelectField
+from wtforms import StringField, IntegerField, SelectField, FileField
 from wtforms.validators import DataRequired, Length, Regexp
 
+UPLOAD_FOLDER = 'uploads'
+RESULT_FOLDER = 'results'
+
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'xls', 'xlsx', 'csv'}
+
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['RESULT_FOLDER'] = RESULT_FOLDER
+
 app.secret_key = 'dev'
 
 logging.basicConfig(filename='log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def get_xml(filename: str) -> str:
@@ -111,6 +123,10 @@ UTM_CHOICES = [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in utmlist]
 
 class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', choices=UTM_CHOICES)
+
+
+class UploadForm(FlaskForm):
+    file = FileField()
 
 
 class RestsForm(FsrarForm):
@@ -868,22 +884,14 @@ def index():
     return redirect(url_for('status'))
 
 
-UPLOAD_FOLDER = 'uploads'
-RESULT_FOLDER = 'results'
-
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'xls', 'xlsx', 'csv'}
-
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['RESULT_FOLDER'] = RESULT_FOLDER
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
+    form = UploadForm()
+    params = {
+        'template_name_or_list': 'upload.html',
+        'title': 'Конвертер',
+        'form': form,
+    }
     if request.method == 'POST':
         # check if the post request has the file part
         if 'file' not in request.files:
@@ -982,24 +990,23 @@ def upload_file():
                         current_row = current_row + idx
 
                     wb.save(result_path)
-                    # print(f'Результат записан в файл: {fin_filename}')
                 return result
 
             import_results = collect_import_data(filepath)
             export_results = collect_export_results(import_results)
             finale_results = make_difference(import_results, export_results)
             result_filename = write_down(finale_results)
-
+            flash(
+                f'Места хранения:\n'
+                f'Импорта: {", ".join(import_results.keys())},\n'
+                f'Экспорта: {", ".join(export_results.keys())},\n'
+                f'Результат: {", ".join(finale_results.keys())}'
+            )
+            if errors:
+                flash('\n'.join(errors))
             return redirect(url_for('uploaded_file', filename=result_filename))
-    return '''
-    <!doctype html>
-    <title>Upload new File</title>
-    <h1>Upload new File</h1>
-    <form method=post enctype=multipart/form-data>
-      <input type=file name=file>
-      <input type=submit value=Upload>
-    </form>
-    '''
+
+    return render_template(**params)
 
 
 @app.route('/results/<filename>')

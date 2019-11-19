@@ -284,13 +284,14 @@ def parse_utm(utm: Utm):
     return result
 
 
-def make_xml(fsrar: str, content: str, filename: str):
-    path = get_xml(filename)
+def create_unique_xml(fsrar: str, content: str, path: str) -> str:
     tree = ET.parse(path)
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0][0][1].text = content
+    path = os.path.join(app.config['RESULT_FOLDER'], f'TTNQuery_{uuid.uuid4()}.xml')
     tree.write(path)
+    return path
 
 
 def make_mark_xml(fsrar: str, mark: str, filename: str):
@@ -396,9 +397,10 @@ def ttn():
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
 
-        make_xml(utm.fsrar, wbregid, file)
+        query = create_unique_xml(utm.fsrar, wbregid, xml)
         url = utm.url() + '/opt/in/QueryResendDoc'
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+
+        files = {'xml_file': (file, open(query, 'rb'), 'application/xml')}
         err = send_xml(url, files)
         log = f'QueryResendDoc: {wbregid} отправлена {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
         logging.info(log)
@@ -583,8 +585,8 @@ def get_nattn():
 
         url = utm.url() + '/opt/in/QueryNATTN'
 
-        make_xml(utm.fsrar, utm.fsrar, file)
-        files = {'xml_file': (file, open(get_xml(file), 'rb'), 'application/xml')}
+        query = create_unique_xml(utm.fsrar, utm.fsrar, xml)
+        files = {'xml_file': (file, open(query, 'rb'), 'application/xml')}
         err = send_xml(url, files)
 
         log = f'QueryNATTN: Отправлен запрос {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'

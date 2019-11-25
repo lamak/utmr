@@ -374,8 +374,7 @@ def parse_nattn(url: str):
                 nattn_list.append([ttn_list[i], date_list[i], doc_list[i]])
         except:
             flash('Ошибка обработки XML', url)
-        return nattn_list
-    return None
+    return nattn_list
 
 
 @app.route('/')

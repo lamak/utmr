@@ -443,6 +443,7 @@ def reject():
         tree = ET.parse(filepath)
         root = tree.getroot()
         root[0][0].text = utm.fsrar
+        root[1][0][0][0].text = 'Rejected'
         root[1][0][0][2].text = str(date.today())
         root[1][0][0][3].text = wbregid
         filepath = os.path.join(app.config['RESULT_FOLDER'], f'TTNReject_{uuid.uuid4()}.xml')

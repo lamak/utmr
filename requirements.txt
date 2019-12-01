@@ -1,5 +1,6 @@
 lxml
 xmltodict
+openpyxl
 Flask
 flask_wtf
 grab

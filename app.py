@@ -28,6 +28,7 @@ CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE') or 'sku-body-
 CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH') or './'
 CONVERTER_DATE_FORMAT = '%Y%m%d'
 ALLOWED_EXTENSIONS = {'xlsx', }
+WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -36,6 +37,15 @@ app.config['RESULT_FOLDER'] = RESULT_FOLDER
 app.secret_key = 'dev'
 
 logging.basicConfig(filename='log', level=logging.WARNING, format='%(asctime)s %(levelname)s: %(message)s')
+
+
+def create_folder(dirname: str):
+    if not os.path.isdir(dirname):
+        os.mkdir(dirname)
+
+
+for f in WORKING_DIRS:
+    create_folder(f)
 
 
 class Utm:
@@ -745,12 +755,13 @@ def check_mark():
     if request.method == 'POST' and form.validate_on_submit():
         res = None
         file = 'queryfilter.xml'
+        xml = get_xml_template(file)
         url_suffix = '/opt/in/QueryFilter'
         mark = request.form['mark'].strip()
         utm = get_instance(request.form['fsrar'], utmlist)
         form.fsrar.data = utm.fsrar
 
-        query = create_unique_mark_xml(utm.fsrar, mark, file)
+        query = create_unique_mark_xml(utm.fsrar, mark, xml)
         url = utm.url() + url_suffix
         files = {'xml_file': (file, open(query, 'rb'), 'application/xml')}
         try:

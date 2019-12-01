@@ -435,6 +435,7 @@ def reject():
         root[0][0].text = utm.fsrar
         root[1][0][0][2].text = str(date.today())
         root[1][0][0][3].text = wbregid
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'TTNReject_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
@@ -469,6 +470,7 @@ def wbrepeal():
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'WBRepeal_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
 
@@ -519,6 +521,7 @@ def requestrepeal():
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'{repeal_type}Repeal_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (repeal_data['file'], open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
@@ -558,6 +561,7 @@ def wbrepealconfirm():
         root[1][0][0][2].text = request_date
         root[1][0][0][3].text = wbregid
         root[1][0][0][4].text = is_confirm
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'WBrepealConfirm_{uuid.uuid4()}.xml')
 
         tree.write(filepath)
 
@@ -741,7 +745,6 @@ def check_mark():
     if request.method == 'POST' and form.validate_on_submit():
         res = None
         file = 'queryfilter.xml'
-        xml = get_xml_template(file)
         url_suffix = '/opt/in/QueryFilter'
         mark = request.form['mark'].strip()
         utm = get_instance(request.form['fsrar'], utmlist)

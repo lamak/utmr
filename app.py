@@ -990,7 +990,7 @@ def upload_file():
                 result = ''
                 if fin:
                     current_row = 7  # first row after header
-                    wb = openpyxl.load_workbook(CONVERTER_TEMPLATE_FILE)
+                    wb = openpyxl.load_workbook(get_xml_template(CONVERTER_TEMPLATE_FILE))
                     sh = wb.get_active_sheet()
                     today = datetime.now().strftime(CONVERTER_DATE_FORMAT)
 

@@ -100,3 +100,6 @@ log
 # Working files
 results/
 uploads/
+
+# Config / utms
+config

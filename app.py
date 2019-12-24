@@ -220,6 +220,7 @@ def humanize_date(iso_date: str) -> str:
 
 def parse_utm(utm: Utm):
     result = Result(utm)
+    div_inc = 0
     homepage, gostpage = Grab(), Grab()
 
     try:

@@ -16,17 +16,18 @@ from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
-from wtforms import StringField, IntegerField, SelectField, FileField
+from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
 from wtforms.validators import DataRequired, Length, Regexp
 
 UPLOAD_FOLDER = 'uploads'
 RESULT_FOLDER = 'results'
 DOMAIN = 'severotorg.local'
 UTM_PORT = '8080'
-UTM_LOG = 'c$/utm/transporter/l/transport_transaction.log'
+UTM_LOG_PATH = 'c$/utm/transporter/l/'
 CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE') or 'sku-body-template.xlsx'
 CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH') or './'
 CONVERTER_DATE_FORMAT = '%Y%m%d'
+LOGFILE_DATE_FORMAT = '%Y_%m_%d'
 ALLOWED_EXTENSIONS = {'xlsx', }
 WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
 
@@ -130,6 +131,14 @@ UTM_CHOICES = [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in utmlist]
 
 class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', choices=UTM_CHOICES)
+
+
+class AllFsrarForm(FsrarForm):
+    all = BooleanField()
+
+
+class TransactionsErrorForm(AllFsrarForm):
+    yesterday = BooleanField()
 
 
 class UploadForm(FlaskForm):
@@ -782,7 +791,7 @@ def check_mark():
 
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
-    form = FsrarForm()
+    form = TransactionsErrorForm()
     params = {
         'template_name_or_list': 'utm_log.html',
         'title': 'УТМ поиск ошибок чеков',
@@ -790,35 +799,49 @@ def get_utm_errors():
     }
 
     if request.method == 'POST':
-        utm = get_instance(request.form['fsrar'], utmlist)
-        form.fsrar.data = utm.fsrar
 
-        transport_log = f'//{utm.host}.{DOMAIN}/{UTM_LOG}'
+        log_name = 'transport_transaction.log'
+        yesterday = ''
 
-        summary = f'{utm.title} [{utm.fsrar}]'
-        data = []
-        results = []
-        total = 0
-        try:
-            with open(transport_log, encoding="utf8") as file:
-                data = file.readlines()
-        except FileNotFoundError:
-            summary = f'{summary}: недоступен или журнал не найден'
+        if form.yesterday:
+            yesterday = {datetime.strftime(datetime.now() - timedelta(days=1), LOGFILE_DATE_FORMAT)}
+            log_name = f'{log_name}.{yesterday}'
 
-        if data:
-            re_error = re.compile('<error>(.*)</error>')
-            for line in data:
-                if 'Получен чек.' in line:
-                    total += 1
-                else:
-                    result = re_error.search(line)
-                    if result:
-                        results.append(result.groups()[0])
+        if form.all:
+            utm = utmlist
+        else:
+            current = get_instance(request.form['fsrar'], utmlist)
+            form.fsrar.data = current.fsrar
+            utm = [current, ]
 
-            summary = f'{summary}: Всего чеков сегодня: {total}, из них с ошибками {len(results)}'
+        res = dict()
 
-        params['summary'] = summary
-        params['results'] = results
+        for u in utm:
+            transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
+            summary = f'{u.title} [{u.fsrar}] {yesterday}'
+            data = []
+            results = []
+            total = 0
+            try:
+                with open(transport_log, encoding="utf8") as file:
+                    data = file.readlines()
+            except FileNotFoundError:
+                summary = f'{summary}: недоступен или журнал не найден'
+
+            if data:
+                re_error = re.compile('<error>(.*)</error>')
+                for line in data:
+                    if 'Получен чек.' in line:
+                        total += 1
+                    else:
+                        result = re_error.search(line)
+                        if result:
+                            results.append(result.groups()[0])
+
+                summary = f'{summary}: Всего чеков сегодня: {total}, из них с ошибками {len(results)}'
+                res[summary] = set(results)
+
+        params['results'] = res
 
     return render_template(**params)
 

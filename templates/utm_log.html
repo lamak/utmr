@@ -7,16 +7,27 @@
     <form action="" method="post" name="send" role="form">
         <label for="fsrar">Выберите УТМ торговый точки</label>
         <p>{{ form.fsrar(class="form-control") }}</p>
+        <p>Все УТМ {{ form.all(class="form-control") }}</p>
+        <p>Предыдущий день {{ form.yesterday(class="form-control") }}</p>
         <p><input type="submit" value="Получить" class="btn btn-primary"></p>
     </form>
-    {% if summary %}
-        <div> {{ summary }}</div>
-    {% endif %}
     {% if results %}
         <h1>Результаты:</h1>
+        {% if results is not none %}
+                {% for key, value in results.items() %}
+                <div>
+                    <b>{{ key }}</b> <br>
+                    {%  for v in value %}
+                        <hr><span class="help-block">{{ v }}</span>
+                    {% endfor %}
+                </div>
+                <hr>
+            {% endfor %}
+
+        {% else %}
+        <p>Нет результатов</p>
+        {% endif %}
     {% endif %}
-    {% for x in results %}
-        <span class="help-block">{{ x }}</span>
-    {% endfor %}
+
 
 {% endblock %}

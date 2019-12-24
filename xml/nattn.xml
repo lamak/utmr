@@ -1,15 +1,17 @@
-<ns0:Documents xmlns:ns0="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ns1="http://fsrar.ru/WEGAIS/QueryParameters" Version="1.0">
-<ns0:Owner>
-<ns0:FSRAR_ID></ns0:FSRAR_ID>
-</ns0:Owner>
-<ns0:Document>
-<ns0:QueryNATTN>
-<ns1:Parameters>
-<ns1:Parameter>
-<ns1:Name>0001</ns1:Name>
-<ns1:Value></ns1:Value>
-</ns1:Parameter>
-</ns1:Parameters>
-</ns0:QueryNATTN>
-</ns0:Document>
-</ns0:Documents>
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:qp="http://fsrar.ru/WEGAIS/QueryParameters">
+    <ns:Owner>
+        <ns:FSRAR_ID></ns:FSRAR_ID>
+    </ns:Owner>
+    <ns:Document>
+        <ns:QueryNATTN>
+            <qp:Parameters>
+                <qp:Parameter>
+                    <qp:Name>КОД</qp:Name>
+                    <qp:Value></qp:Value>
+                </qp:Parameter>
+            </qp:Parameters>
+        </ns:QueryNATTN>
+    </ns:Document>
+</ns:Documents>

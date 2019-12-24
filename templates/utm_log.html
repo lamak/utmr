@@ -2,8 +2,7 @@
 {% block body %}
     {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
     <p class="lead">Поиск ошибок в журнале чеков УТМ</p>
-    <span class="help-block">Если проверка марки завершилась ошибкой, покажет ее. За текущий день</span>
-
+    <span class="help-block">Ошибки УТМ при проверке марок</span>
     <form action="" method="post" name="send" role="form">
         <label for="fsrar">Выберите УТМ торговый точки</label>
         <p>{{ form.fsrar(class="form-control") }}</p>
@@ -12,7 +11,7 @@
         <p><input type="submit" value="Получить" class="btn btn-primary"></p>
     </form>
     {% if results %}
-        <h1>Результаты:</h1>
+        <h1>Результаты {{ date }}: </h1>
         {% if results is not none %}
                 {% for key, value in results.items() %}
                 <div>

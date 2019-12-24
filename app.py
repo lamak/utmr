@@ -28,6 +28,7 @@ CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE') or 'sku-body-
 CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH') or './'
 CONVERTER_DATE_FORMAT = '%Y%m%d'
 LOGFILE_DATE_FORMAT = '%Y_%m_%d'
+HUMAN_DATE_FORMAT = '%Y-%m-%d'
 ALLOWED_EXTENSIONS = {'xlsx', }
 WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
 
@@ -799,25 +800,30 @@ def get_utm_errors():
     }
 
     if request.method == 'POST':
+        res = dict()
+        show_all = True
+        today = datetime.now()
+
         log_name = 'transport_transaction.log'
-        yesterday = ''
+        params['date'] = today.strftime(HUMAN_DATE_FORMAT)
 
         if request.form.get('yesterday'):
-            yesterday = datetime.strftime(datetime.now() - timedelta(days=1), LOGFILE_DATE_FORMAT)
-            log_name = f'{log_name}.{yesterday}'
+            yesterday = today - timedelta(days=1)
+            log_name = f'{log_name}.{yesterday.strftime(LOGFILE_DATE_FORMAT)}'
+            params['date'] = yesterday.strftime(HUMAN_DATE_FORMAT)
 
         if request.form.get('all'):
             utm = utmlist
+            show_all = False
         else:
             current = get_instance(request.form['fsrar'], utmlist)
             form.fsrar.data = current.fsrar
             utm = [current, ]
 
-        res = dict()
 
         for u in utm:
             transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            summary = f'{u.title} [{u.fsrar}] {yesterday}'
+            summary = f'{u.title} [{u.fsrar}]'
             data = []
             results = []
             total = 0
@@ -837,8 +843,10 @@ def get_utm_errors():
                         if result:
                             results.append(result.groups()[0])
 
-                summary = f'{summary}: Всего чеков сегодня: {total}, из них с ошибками {len(results)}'
-                res[summary] = set(results)
+                summary = f'{summary}: Всего чеков: {total}, из них с ошибками {len(results)}'
+                if results or show_all:
+                    res[summary] = set(results)
+
 
         params['results'] = res
 

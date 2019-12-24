@@ -7,8 +7,8 @@
     <form action="" method="post" name="send" role="form">
         <label for="fsrar">Выберите УТМ торговый точки</label>
         <p>{{ form.fsrar(class="form-control") }}</p>
-        <p>Все УТМ {{ form.all(class="form-control") }}</p>
-        <p>Предыдущий день {{ form.yesterday(class="form-control") }}</p>
+        <p>{{ form.all() }} Все УТМ</p>
+        <p>{{ form.yesterday() }} Предыдущий день</p>
         <p><input type="submit" value="Получить" class="btn btn-primary"></p>
     </form>
     {% if results %}

@@ -799,15 +799,14 @@ def get_utm_errors():
     }
 
     if request.method == 'POST':
-
         log_name = 'transport_transaction.log'
         yesterday = ''
 
-        if form.yesterday:
-            yesterday = {datetime.strftime(datetime.now() - timedelta(days=1), LOGFILE_DATE_FORMAT)}
+        if request.form.get('yesterday'):
+            yesterday = datetime.strftime(datetime.now() - timedelta(days=1), LOGFILE_DATE_FORMAT)
             log_name = f'{log_name}.{yesterday}'
 
-        if form.all:
+        if request.form.get('all'):
             utm = utmlist
         else:
             current = get_instance(request.form['fsrar'], utmlist)

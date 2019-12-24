@@ -820,7 +820,6 @@ def get_utm_errors():
             form.fsrar.data = current.fsrar
             utm = [current, ]
 
-
         for u in utm:
             transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
             summary = f'{u.title} [{u.fsrar}]'
@@ -847,8 +846,9 @@ def get_utm_errors():
                 if results or show_all:
                     res[summary] = set(results)
 
-
         params['results'] = res
+        params['total'] = len(res)
+        params['total_errors'] = sum(len(v) for v in res.values())
 
     return render_template(**params)
 

@@ -18,7 +18,7 @@
                 <div>
                     <b>{{ key }}</b> <br>
                     {%  for v in value %}
-                        <hr><span class="help-block">{{ v }}</span>
+                        <hr><span class="help-block">{{ v|safe }}</span>
                     {% endfor %}
                 </div>
                 <hr>

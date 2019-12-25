@@ -840,9 +840,20 @@ def get_utm_errors():
                     else:
                         result = re_error.search(line)
                         if result:
-                            results.append(result.groups()[0])
+                            text_result = result.groups()[0]
+                            try:
+                                _, title, result = text_result.split(':')
+                                split_results = result.split(',')
+                                for mark_res in split_results:
+                                    description, mark = mark_res.split('(')
+                                    description = description.strip(' ')
+                                    mark = mark.strip(')')
+                                    results.append(f'<strong>{description}</strong>: <code>{mark}</code>')
 
-                summary = f'{summary}: Всего чеков: {total}, из них с ошибками {len(results)}'
+                            except ValueError:
+                                results.append(f'<strong>Не удалось обработать ошибку</strong> {text_result}')
+
+                summary = f'{summary}: Всего чеков: {total}, ошибок {len(results)}'
                 if results or show_all:
                     res[summary] = set(results)
 

@@ -16,7 +16,7 @@
         {% if results is not none %}
                 {% for key, value in results.items() %}
                 <div>
-                    <b>{{ key }}</b> <br>
+                    <b>{{ key|safe }}</b><br>
                     {%  for v in value %}
                         <hr><span class="help-block">{{ v|safe }}</span>
                     {% endfor %}

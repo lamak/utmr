@@ -874,6 +874,9 @@ def compose_error_result(mark: str, desc: str, cheques: Optional[list]) -> str:
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
     form = TransactionsErrorForm()
+    form.fsrar.data = request.args.get('fsrar')
+    form.yesterday.data = request.args.get('yesterday')
+
     params = {
         'template_name_or_list': 'utm_log.html',
         'title': 'УТМ поиск ошибок чеков',
@@ -904,7 +907,7 @@ def get_utm_errors():
 
         for u in utm:
             transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            utm_summary = f'{u.title} [{u.fsrar}]'
+            utm_summary = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>]'
 
             try:
                 with open(transport_log, encoding="utf8") as file:

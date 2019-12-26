@@ -5,8 +5,10 @@ import re
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
-from typing import List
+from typing import List, Optional
 
+import MySQLdb
+import MySQLdb.cursors as cursors
 import openpyxl
 import requests
 import xmltodict
@@ -26,6 +28,13 @@ UTM_PORT = '8080'
 UTM_LOG_PATH = 'c$/utm/transporter/l/'
 CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE') or 'sku-body-template.xlsx'
 CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH') or './'
+mysql_config = {
+    'db': os.environ.get('UKM_DB'),
+    'user': os.environ.get('UKM_USER'),
+    'passwd': os.environ.get('UKM_PASSWD'),
+    'cursorclass': cursors.DictCursor
+}
+
 CONVERTER_DATE_FORMAT = '%Y%m%d'
 LOGFILE_DATE_FORMAT = '%Y_%m_%d'
 HUMAN_DATE_FORMAT = '%Y-%m-%d'
@@ -55,11 +64,12 @@ class Utm:
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
     """
 
-    def __init__(self, fsrar, host, title, path):
+    def __init__(self, fsrar, host, title, path, ukm):
         self.fsrar = fsrar
         self.host = host
         self.title = title
         self.path = path
+        self.ukm = ukm
 
     def __str__(self):
         return f'{self.fsrar} {self.title}'
@@ -69,6 +79,9 @@ class Utm:
 
     def url(self):
         return f'http://{self.host}.{DOMAIN}:{UTM_PORT}'
+
+    def ukm_host(self):
+        return f'{self.ukm}.{DOMAIN}'
 
     def build_url(self):
         return self.url() + '/?b'
@@ -790,6 +803,72 @@ def check_mark():
     return render_template(**params)
 
 
+def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
+    """ Выполнение запроса к MySQL """
+    mysql_config['host'] = ukm_hostname
+
+    try:
+        connection = MySQLdb.connect(**mysql_config)
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            data = cursor.fetchall()
+
+        connection.close()
+
+    except MySQLdb._exceptions.OperationalError as e:
+        logging.error(e)
+        data = None
+
+    return data
+
+
+def get_cheques_from_ukm(host: str, mark: str) -> Optional[list]:
+    """ Получение списка чеков"""
+    query = f"""
+        SELECT 
+            trm_out_receipt_header.date,
+            trm_out_receipt_item.name,
+            trm_out_receipt_header.type,
+            trm_out_receipt_footer.result, 
+            trm_out_receipt_egais.url
+          FROM trm_out_receipt_item_egais
+          left outer JOIN trm_out_receipt_item ON trm_out_receipt_item_egais.id = trm_out_receipt_item.id AND trm_out_receipt_item_egais.cash_id = trm_out_receipt_item.cash_id
+          left outer JOIN trm_out_receipt_header ON trm_out_receipt_item.receipt_header = trm_out_receipt_header.id AND trm_out_receipt_item.cash_id = trm_out_receipt_header.cash_id
+          left outer JOIN trm_out_receipt_footer ON trm_out_receipt_item.receipt_header = trm_out_receipt_footer.id AND trm_out_receipt_item.cash_id = trm_out_receipt_footer.cash_id
+          left outer JOIN trm_out_receipt_egais ON trm_out_receipt_item.receipt_header = trm_out_receipt_egais.id AND trm_out_receipt_item.cash_id = trm_out_receipt_egais.cash_id
+          where egais_barcode like '%{mark}%'
+          order by trm_out_receipt_header.date asc
+    """
+    return get_mysql_data(host, query)
+
+
+def split_error_for_marks(mark_res: str) -> (str, str):
+    """ Выделение марки и описания ошибки из ошибки лога УТМ"""
+    description, mark = mark_res.split('(')
+    description = description.strip(' ')
+    mark = mark.strip(')')
+    return mark, description
+
+
+def compose_cheque_link(ukm_cheque: dict) -> str:
+    """ Формирование строки - ссылки для чеков УКМ"""
+    txt = f'{ukm_cheque["date"]} {ukm_cheque["name"]} — {"Возврат" if ukm_cheque["type"] == 4 else "Продажа"} — {"Завершен" if ukm_cheque["result"] == 0 else "Аннулирован"}'
+    return f'<a href="{ukm_cheque["url"]}">{txt}</a>' if ukm_cheque["url"] else txt
+
+
+def compose_error_result(mark: str, desc: str, cheques: Optional[list]) -> str:
+    """ Результат по ошибке вместе с чеками по найденной марке"""
+    res = f'<strong>{desc}</strong>: <code>{mark}</code>'
+
+    if cheques is None:
+        res = res + f'<br><strong>Не удалось получить чеки из УКМ</strong>'
+
+    if cheques:
+        cheques_text = [compose_cheque_link(c) for c in cheques]
+        res = res + f'<br><strong>Сведения из УКМ:</strong><ol><li>{"<li>".join(cheques_text)}</ol>'
+    return res
+
+
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
     form = TransactionsErrorForm()
@@ -800,9 +879,10 @@ def get_utm_errors():
     }
 
     if request.method == 'POST':
-        res = dict()
-        show_all = True
+        utm_results = dict()
+        show_all_errors = True
         today = datetime.now()
+        re_error = re.compile('<error>(.*)</error>')
 
         log_name = 'transport_transaction.log'
         params['date'] = today.strftime(HUMAN_DATE_FORMAT)
@@ -814,52 +894,60 @@ def get_utm_errors():
 
         if request.form.get('all'):
             utm = utmlist
-            show_all = False
+            show_all_errors = False
         else:
             current = get_instance(request.form['fsrar'], utmlist)
             form.fsrar.data = current.fsrar
             utm = [current, ]
 
         for u in utm:
-            transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            summary = f'{u.title} [{u.fsrar}]'
-            data = []
-            results = []
-            total = 0
+            # transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
+            transport_log = 'transport_transaction.log.2019_12_23'
+            utm_summary = f'{u.title} [{u.fsrar}]'
+
             try:
                 with open(transport_log, encoding="utf8") as file:
-                    data = file.readlines()
+                    current_utm_mark_errors = []
+                    current_utm_results = []
+                    cheques_counter = 0
+
+                    for line in file.readlines():
+                        if 'Получен чек.' in line:
+                            cheques_counter += 1
+                        else:
+                            error_line = re_error.search(line)
+                            if error_line:
+                                error_text = error_line.groups()[0]
+                                try:
+                                    _, title, error_line = error_text.split(':')
+                                    split_results = error_line.split(',')
+                                    for mark_res in split_results:
+                                        mark, description = split_error_for_marks(mark_res)
+                                        if mark not in current_utm_mark_errors:
+
+                                            if request.form.get('all'):
+                                                cheques = None
+                                            else:
+                                                cheques = get_cheques_from_ukm(u.ukm_host(), mark)
+                                            mark_text_result = compose_error_result(mark, description, cheques)
+                                            current_utm_results.append(mark_text_result)
+                                            current_utm_mark_errors.append(mark)
+
+                                except ValueError:
+                                    current_utm_results.append(
+                                        f'<strong>Не удалось обработать ошибку</strong> {error_text}')
+
+                    utm_summary = f'{utm_summary}: Всего чеков: {cheques_counter}, ошибок {len(current_utm_results)}'
+                    if current_utm_results or show_all_errors:
+                        utm_results[utm_summary] = set(current_utm_results)
+
             except FileNotFoundError:
-                summary = f'{summary}: недоступен или журнал не найден'
+                utm_summary = f'{utm_summary}: недоступен или журнал не найден'
+                utm_results[utm_summary] = []
 
-            if data:
-                re_error = re.compile('<error>(.*)</error>')
-                for line in data:
-                    if 'Получен чек.' in line:
-                        total += 1
-                    else:
-                        result = re_error.search(line)
-                        if result:
-                            text_result = result.groups()[0]
-                            try:
-                                _, title, result = text_result.split(':')
-                                split_results = result.split(',')
-                                for mark_res in split_results:
-                                    description, mark = mark_res.split('(')
-                                    description = description.strip(' ')
-                                    mark = mark.strip(')')
-                                    results.append(f'<strong>{description}</strong>: <code>{mark}</code>')
-
-                            except ValueError:
-                                results.append(f'<strong>Не удалось обработать ошибку</strong> {text_result}')
-
-                summary = f'{summary}: Всего чеков: {total}, ошибок {len(results)}'
-                if results or show_all:
-                    res[summary] = set(results)
-
-        params['results'] = res
-        params['total'] = len(res)
-        params['total_errors'] = sum(len(v) for v in res.values())
+        params['results'] = utm_results
+        params['total'] = len(utm_results)
+        params['total_errors'] = sum(len(v) for v in utm_results.values())
 
     return render_template(**params)
 

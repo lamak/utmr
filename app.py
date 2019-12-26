@@ -871,6 +871,53 @@ def compose_error_result(mark: str, desc: str, cheques: Optional[list]) -> str:
     return res
 
 
+def search_error_line(line: str, re_err):
+    """ Поиск ошибок в строке и возврат текста ошибки"""
+    error_result = re_err.search(line)
+    return error_result.groups()[0] if error_result else None
+
+
+def process_utm_log_file(filename: str, ukm: str, is_full_check: bool):
+    """ Ошибки в transport_transaction по маркам"""
+    current_utm_results = []
+
+    try:
+        with open(filename, encoding="utf8") as file:
+            re_error = re.compile('<error>(.*)</error>')
+            cheque_text = 'Получен чек.'
+            current_utm_mark_errors = []
+            cheques_counter = 0
+
+            for line in file.readlines():
+                if cheque_text in line:
+                    cheques_counter += 1
+
+                error_text = search_error_line(line, re_error)
+                if error_text is not None:
+
+                    try:
+                        _, title, error_line = error_text.split(':')
+                        split_results = error_line.split(',')
+                        for mark_res in split_results:
+                            mark, description = split_error_for_marks(mark_res)
+                            # пропускаем повторяющиеся марки
+                            if mark not in current_utm_mark_errors:
+                                cheques = get_cheques_from_ukm(ukm, mark) if is_full_check else []
+                                mark_text_result = compose_error_result(mark, description, cheques)
+                                current_utm_results.append(mark_text_result)
+                                current_utm_mark_errors.append(mark)
+
+                    except ValueError:
+                        current_utm_results.append(f'<strong>Не удалось обработать ошибку</strong> {error_text}')
+
+            summary = f'Всего чеков: {cheques_counter}, ошибок {len(current_utm_results)}'
+
+    except FileNotFoundError:
+        summary = 'недоступен или журнал не найден'
+
+    return summary, set(current_utm_results)
+
+
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
     form = TransactionsErrorForm()
@@ -884,10 +931,9 @@ def get_utm_errors():
     }
 
     if request.method == 'POST':
-        utm_results = dict()
-        show_all_errors = True
+        results = dict()
+        get_ukm_cheques = True
         today = datetime.now()
-        re_error = re.compile('<error>(.*)</error>')
 
         log_name = 'transport_transaction.log'
         params['date'] = today.strftime(HUMAN_DATE_FORMAT)
@@ -899,59 +945,22 @@ def get_utm_errors():
 
         if request.form.get('all'):
             utm = utmlist
-            show_all_errors = False
+            get_ukm_cheques = False
         else:
             current = get_instance(request.form['fsrar'], utmlist)
             form.fsrar.data = current.fsrar
             utm = [current, ]
 
         for u in utm:
-            transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            utm_summary = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>]'
+            # transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
+            transport_log = 'transport_transaction.log'
+            utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
+            summary, utm_result = process_utm_log_file(transport_log, u.ukm_host(), get_ukm_cheques)
+            results[utm_header + summary] = utm_result
 
-            try:
-                with open(transport_log, encoding="utf8") as file:
-                    current_utm_mark_errors = []
-                    current_utm_results = []
-                    cheques_counter = 0
-
-                    for line in file.readlines():
-                        if 'Получен чек.' in line:
-                            cheques_counter += 1
-                        else:
-                            error_line = re_error.search(line)
-                            if error_line:
-                                error_text = error_line.groups()[0]
-                                try:
-                                    _, title, error_line = error_text.split(':')
-                                    split_results = error_line.split(',')
-                                    for mark_res in split_results:
-                                        mark, description = split_error_for_marks(mark_res)
-                                        if mark not in current_utm_mark_errors:
-
-                                            if request.form.get('all'):
-                                                cheques = []
-                                            else:
-                                                cheques = get_cheques_from_ukm(u.ukm_host(), mark)
-                                            mark_text_result = compose_error_result(mark, description, cheques)
-                                            current_utm_results.append(mark_text_result)
-                                            current_utm_mark_errors.append(mark)
-
-                                except ValueError:
-                                    current_utm_results.append(
-                                        f'<strong>Не удалось обработать ошибку</strong> {error_text}')
-
-                    utm_summary = f'{utm_summary}: Всего чеков: {cheques_counter}, ошибок {len(current_utm_results)}'
-                    if current_utm_results or show_all_errors:
-                        utm_results[utm_summary] = set(current_utm_results)
-
-            except FileNotFoundError:
-                utm_summary = f'{utm_summary}: недоступен или журнал не найден'
-                utm_results[utm_summary] = []
-
-        params['results'] = utm_results
-        params['total'] = len(utm_results)
-        params['total_errors'] = sum(len(v) for v in utm_results.values())
+        params['results'] = results
+        params['total'] = len(results)
+        params['total_errors'] = sum(len(v) for v in results.values())
 
     return render_template(**params)
 

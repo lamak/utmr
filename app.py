@@ -927,7 +927,7 @@ def get_utm_errors():
                                         if mark not in current_utm_mark_errors:
 
                                             if request.form.get('all'):
-                                                cheques = None
+                                                cheques = []
                                             else:
                                                 cheques = get_cheques_from_ukm(u.ukm_host(), mark)
                                             mark_text_result = compose_error_result(mark, description, cheques)

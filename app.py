@@ -32,7 +32,9 @@ mysql_config = {
     'db': os.environ.get('UKM_DB'),
     'user': os.environ.get('UKM_USER'),
     'passwd': os.environ.get('UKM_PASSWD'),
-    'cursorclass': cursors.DictCursor
+    'cursorclass': cursors.DictCursor,
+    'charset': 'utf8',
+    'use_unicode': True,
 }
 
 CONVERTER_DATE_FORMAT = '%Y%m%d'
@@ -901,8 +903,7 @@ def get_utm_errors():
             utm = [current, ]
 
         for u in utm:
-            # transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            transport_log = 'transport_transaction.log.2019_12_23'
+            transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
             utm_summary = f'{u.title} [{u.fsrar}]'
 
             try:

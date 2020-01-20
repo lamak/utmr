@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
 from wtforms.validators import DataRequired, Length, Regexp
 
+UTMS_CONFIG = 'config'
 UPLOAD_FOLDER = 'uploads'
 RESULT_FOLDER = 'results'
 DOMAIN = 'severotorg.local'
@@ -138,15 +139,15 @@ class Result:
         self.build = ''
 
 
-with open('config', 'r', encoding='utf-8') as f:
-    utmlist = [Utm(*u.split(';')) for u in f.read().splitlines()]
-    utmlist.sort(key=lambda utm: utm.title)
-
-UTM_CHOICES = [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in utmlist]
+def get_utm_list(filename: str = UTMS_CONFIG):
+    with open(filename, 'r', encoding='utf-8') as f:
+        utms = [Utm(*u.split(';')) for u in f.read().splitlines()]
+        utms.sort(key=lambda utm: utm.title)
+    return utms
 
 
 class FsrarForm(FlaskForm):
-    fsrar = SelectField('fsrar', choices=UTM_CHOICES)
+    fsrar = SelectField('fsrar', choices=[(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in get_utm_list()])
 
 
 class AllFsrarForm(FsrarForm):
@@ -211,9 +212,9 @@ def get_xml_template(filename: str) -> str:
     return os.path.join('xml/', filename)
 
 
-def get_instance(fsrar: str, utms: List[Utm]) -> Utm:
+def get_instance(fsrar: str) -> Optional[Utm]:
     """ Получаем УТМ из формы по ФСРАР ИД"""
-    return next((x for x in utms if x.fsrar == fsrar), None)
+    return next((x for x in get_utm_list(UTMS_CONFIG) if x.fsrar == fsrar), None)
 
 
 def get_limit(field: str, max_limit: int, default_limit: int) -> int:
@@ -432,7 +433,7 @@ def ttn():
         xml = get_xml_template(file)
 
         wbregid = request.form['wbregid'].strip()
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         query = create_unique_xml(utm.fsrar, wbregid, xml)
@@ -461,7 +462,7 @@ def reject():
         filepath = get_xml_template(file)
 
         wbregid = request.form['wbregid'].strip()
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         url = utm.url() + '/opt/in/WayBillAct_v3'
@@ -496,7 +497,7 @@ def wbrepeal():
         filepath = get_xml_template(file)
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         url = utm.url() + '/opt/in/RequestRepealWB'
@@ -547,7 +548,7 @@ def requestrepeal():
         filepath = get_xml_template(repeal_data['file'])
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         url = utm.url() + repeal_data['url']
         form.fsrar.data = utm.fsrar
         form.r_type.data = repeal_type
@@ -583,7 +584,7 @@ def wbrepealconfirm():
         filepath = get_xml_template(file)
         wbregid = request.form['wbregid'].strip()
         is_confirm = request.form['is_confirm']
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.is_confirm.data = request.form['is_confirm']
         form.fsrar.data = utm.fsrar
 
@@ -625,7 +626,7 @@ def get_nattn():
         file = 'nattn.xml'
         xml = get_xml_template(file)
 
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         url = utm.url() + '/opt/in/QueryNATTN'
@@ -652,7 +653,7 @@ def check_nattn():
     }
 
     if request.method == 'POST':
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         ttnlist = parse_nattn(find_last_nattn(utm.url()))
@@ -688,12 +689,12 @@ def service_clean():
     if request.method == 'POST':
         results = []
         if 'select' in request.form:
-            utm = get_instance(request.form['fsrar'], utmlist)
+            utm = get_instance(request.form['fsrar'])
             results.append(clean(utm))
             form.fsrar.data = utm.fsrar
 
         elif 'all' in request.form:
-            for utm in utmlist:
+            for utm in get_utm_list():
                 results.append(clean(utm))
 
         params['results'] = results
@@ -710,7 +711,7 @@ def status():
     err = False
 
     if request.method == 'POST':
-        results = [parse_utm(utm) for utm in utmlist]
+        results = [parse_utm(utm) for utm in get_utm_list()]
 
         if 'gost' in request.form:
             results.sort(key=lambda result: result.gost)
@@ -734,7 +735,7 @@ def cheque():
         'form': form,
     }
     if request.method == 'POST' and form.validate_on_submit():
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
 
         # creating document with cheque header attributes
         document = ET.Element('Cheque')
@@ -785,7 +786,7 @@ def check_mark():
         xml = get_xml_template(file)
         url_suffix = '/opt/in/QueryFilter'
         mark = request.form['mark'].strip()
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         query = create_unique_mark_xml(utm.fsrar, mark, xml)
@@ -944,10 +945,10 @@ def get_utm_errors():
             params['date'] = yesterday.strftime(HUMAN_DATE_FORMAT)
 
         if request.form.get('all'):
-            utm = utmlist
+            utm = get_utm_list()
             get_ukm_cheques = False
         else:
-            current = get_instance(request.form['fsrar'], utmlist)
+            current = get_instance(request.form['fsrar'])
             form.fsrar.data = current.fsrar
             utm = [current, ]
 
@@ -980,7 +981,7 @@ def get_rests():
 
         search_alccode = request.form['alccode'].strip()
         limit = get_limit(request.form['limit'], 50, 10)
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         for root, dirs, files in os.walk(utm.path):
@@ -1023,7 +1024,7 @@ def get_tickets():
         doc = request.form['search'].strip()
         limit = request.form['limit'].strip()
         limit = int(limit) if limit.isdigit() and int(limit) < 5000 else 1000
-        utm = get_instance(request.form['fsrar'], utmlist)
+        utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         for root, dirs, files in os.walk(utm.path):

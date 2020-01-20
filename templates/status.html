@@ -74,9 +74,14 @@
                         <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING" title="Not OK">
                     {% endif %}
                 </td>
-                <td>{{ u.build }}</td>
-                {% if err %} 
-                    <td>{{ u.error }}</td>
+                {% if err %}
+                <td>
+                    {% if u.error|length == 0 %}
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK" title="{{ u.error }}">
+                    {% else %}
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING" title="{{ u.error }}">
+                    {% endif %}
+                </td>
                 {% endif %}
             </tr>
         {% endfor %}

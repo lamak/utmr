@@ -28,8 +28,6 @@
             <th>Статус</th>
             <th>Лиц</th>
             <th>Фильтр</th>
-            <th>Build</th>
-            
             {% if err %} 
                 <th>Ошибка</th>
             {% endif %}
@@ -39,7 +37,7 @@
         {% for u in results %}
             <tr>
                 <td><a href="{{ u.url }}">{{ u.title }}</a></td>
-                <td>{{ u.host }}</td>
+                <td title="{{ u.build }}">{{ u.host }}</td>
                 <td>{{ u.legal }}</td>
                 <td>{{ u.fsrar }}</td>
                 <td title="{{ u.pki }}">{{ u.gost }}</td>

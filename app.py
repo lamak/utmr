@@ -308,13 +308,13 @@ def parse_utm(utm: Utm):
 
     # не удалось соединиться
     except GrabTimeoutError:
-        result.error.append('Таймаут')
+        result.error.append('Нет связи: таймаут')
 
     except GrabCouldNotResolveHostError:
-        result.error.append('Нет DNS имени')
+        result.error.append('Нет связи: не найден сервер')
 
     except GrabConnectionError:
-        result.error.append('Не удалось подключиться')
+        result.error.append('Нет связи: ошибка подключения')
 
     result.error = ' '.join(result.error)
 

@@ -121,6 +121,8 @@ class Result:
     def __init__(self, utm: Utm):
         self.utm: Utm = utm  # fsrar, server, title
         self.legal: str = ''
+        self.surname: str = ''
+        self.givenname: str = ''
         self.gost: str = ''
         self.pki: str = ''
         self.cheques: str = ''
@@ -298,11 +300,22 @@ def parse_utm(utm: Utm):
 
         try:
             pre = gostpage.doc.select('//pre').text()
-            string_start = pre.find('CN') + 3
-            end_comma = pre.find(',', string_start)
-            end_sig = pre.find(' Signature', string_start)
-            end = end_comma if end_comma < end_sig else end_sig
-            result.legal = pre[string_start:end].replace('"', '').replace("\\", '')[0:20]
+            cn = re.compile(r'(?<=CN=)[^,]*')
+            name = re.compile(r'(?<=GIVENNAME=)[^,]*')
+            surname = re.compile(r'(?<=SURNAME=)[^,]*')
+
+            cn_res = cn.search(pre)
+            if cn_res is not None:
+                result.legal = cn_res.group().replace('"', '').replace('\\', '').replace('ООО', '')[0:20]
+
+            surname_res = surname.search(pre)
+            if surname_res is not None:
+                result.surname = surname_res.group()
+
+            name_res = name.search(pre)
+            if name_res is not None:
+                result.givenname = name_res.group()
+
         except:
             result.error.append('Не найден сертификат организации\n')
 

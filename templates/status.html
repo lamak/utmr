@@ -15,20 +15,21 @@
 
     </p>
     </form>
-    {% if results %} 
+    {% if results %}
     <table class="table table-hover">
         <thead>
         <tr>
             <th>ТТ</th>
             <th>Сервер</th>
             <th>Организация</th>
+            <th>Директор</th>
             <th>ФСРАР ИД</th>
             <th>ГОСТ</th>
             <th>Чеки</th>
             <th>Статус</th>
             <th>Лиц</th>
             <th>Фильтр</th>
-            {% if err %} 
+            {% if err %}
                 <th>Ошибка</th>
             {% endif %}
         </tr>
@@ -38,38 +39,39 @@
             <tr>
                 <td><a href="{{ u.url }}">{{ u.title }}</a></td>
                 <td title="{{ u.build }}">{{ u.host }}</td>
-                <td>{{ u.legal }}</td>
+                <td title="{{ u.surname }}">{{ u.legal }}</td>
+                <td title="{{ u.surname }} {{ u.givenname }}">{{ u.surname }}</td>
                 <td>{{ u.fsrar }}</td>
                 <td title="{{ u.pki }}">{{ u.gost }}</td>
                 <td>
-                    {% if u.cheques == 'OK' %} 
-                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% if u.cheques == 'OK' %}
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
                     {% else %}
-                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING"> 
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
                     {{ u.cheques }} {% endif %}
                 </td>
-                
+
                 <td>
-                    {% if u.status == True %} 
-                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% if u.status == True %}
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
                     {% else %}
                         <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
                     {% endif %}
                 </td>
 
                 <td>
-                    {% if u.license == True %} 
-                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% if u.license == True %}
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
                     {% else %}
-                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
                     {% endif %}
                 </td>
 
                 <td>
-                    {% if u.filter == True %} 
-                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"> 
+                    {% if u.filter == True %}
+                        <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
                     {% else %}
-                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">  
+                        <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING" title="Not OK">
                     {% endif %}
                 </td>
                 <td>{{ u.build }}</td>

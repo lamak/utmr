@@ -966,8 +966,7 @@ def get_utm_errors():
             utm = [current, ]
 
         for u in utm:
-            # transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            transport_log = 'transport_transaction.log'
+            transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
             utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
             summary, utm_result = process_utm_log_file(transport_log, u.ukm_host(), get_ukm_cheques)
             results[utm_header + summary] = utm_result

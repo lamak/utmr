@@ -973,6 +973,7 @@ def get_utm_errors():
 
         params['results'] = results
         params['total'] = len(results)
+        params['error_count'] = len([x for x in results.values() if x is not None])
         params['total_errors'] = sum(len(v) for v in results.values())
 
     return render_template(**params)

@@ -5,7 +5,8 @@ import re
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import Optional
+from pymongo import MongoClient
 
 import MySQLdb
 import MySQLdb.cursors as cursors
@@ -43,6 +44,9 @@ LOGFILE_DATE_FORMAT = '%Y_%m_%d'
 HUMAN_DATE_FORMAT = '%Y-%m-%d'
 ALLOWED_EXTENSIONS = {'xlsx', }
 WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
+
+client = MongoClient()
+db = client.tempdb
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -139,6 +143,13 @@ class Result:
         self.version = ''
         self.changeset = ''
         self.build = ''
+        self.date = datetime.utcnow()
+
+    def to_dict(self):
+        d = vars(self)
+        d['last'] = True
+        del d['utm']
+        return d
 
 
 def get_utm_list(filename: str = UTMS_CONFIG):
@@ -725,6 +736,16 @@ def status():
 
     if request.method == 'POST':
         results = [parse_utm(utm) for utm in get_utm_list()]
+        text_results = [x.to_dict() for x in results]
+
+        # сохраним результаты монге, для будущих поколений
+        try:
+            db.results.update_many({}, {'$set': {'last': False}})
+            db.results.insert_many(text_results)
+        except:
+            log = f"Не удалось записать результаты в БД"
+            flash(log)
+            logging.info(log)
 
         if 'gost' in request.form:
             results.sort(key=lambda result: result.gost)
@@ -891,6 +912,103 @@ def search_error_line(line: str, re_err):
     return error_result.groups()[0] if error_result else None
 
 
+class MarkErrors:
+
+    def __init__(self, logdate, fsrar, error, mark=None):
+        self.fsrar = fsrar
+        self.date = logdate
+        self.error = error
+        self.mark = mark
+
+    def compose_text(self):
+        return
+
+
+def parse_log_for_errors(filename: str) -> (list, int, str):
+    """ Возвращаем список событий с ошибками, кол-во чеков в логе"""
+    err = None
+    cheques_counter = 0
+    current_utm_mark_errors = []
+    re_error = re.compile('<error>(.*)</error>')
+
+    try:
+        with open(filename, encoding="utf8") as file:
+            cheque_text = 'Получен чек.'
+            # cheques_counter = len([x for x in file.readlines() if cheque_text in x])
+
+            for line in file.readlines():
+                if cheque_text in line:
+                    cheques_counter += 1
+
+                else:
+                    error_text = search_error_line(line, re_error)
+                    if error_text is not None:
+                        error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
+                        current_utm_mark_errors.append([error_time, error_text])
+
+    except FileNotFoundError:
+        err = 'недоступен или журнал не найден'
+
+    return current_utm_mark_errors, cheques_counter, err
+
+
+def parse_errors(errors: list, fsrar: str):
+    """ собираем список объектов ошибок для дальнешей обработки"""
+    processed_errors = []
+    for e in errors:
+        error_text = e[1]
+        error_time = e[0]
+
+        try:
+            _, title, error_line = error_text.split(':')
+            split_results = error_line.split(',')
+            for mark_res in split_results:
+                mark, description = split_error_for_marks(mark_res)
+                processed_errors.append(MarkErrors(error_time, fsrar, description, mark))
+
+                # m = MarkErrors(error_time, description, mark)
+                # if not db.marks.find_one({'mark': mark, 'date': error_time}):
+                #     db.marks.insert_one(vars(m))
+
+                # пропускаем повторяющиеся марки
+                # if mark not in current_utm_mark_errors:
+                #     cheques = get_cheques_from_ukm(ukm, mark) if is_full_check else []
+                #     mark_text_result = compose_error_result(mark, description, cheques)
+                #     # current_utm_results.append(mark_text_result)
+                #     # current_utm_mark_errors.append(mark)
+
+        except ValueError:
+            # m = MarkErrors(error_time, description)
+            # if not db.marks.find_one({'description': description, 'date': error_time}):
+            #     db.marks.insert_one(vars(m))
+            # current_utm_results.append(f'<strong>Не удалось обработать ошибку</strong> {error_text}')
+            processed_errors.append(MarkErrors(error_time, fsrar, 'Не удалось обработать ошибку: ' + error_text))
+
+    return processed_errors
+
+
+def process_errors(errors: list, full: bool, ukm: str):
+    """ Обработка,запись, формирование сообщений
+    full означает, что нужно получать чеки по маркам УКМ
+    """
+    current_marks = []
+    current_results = []
+    for e in errors:
+        # Записываем в монгу все новые, с маркой или без
+        if e.mark is None or not db.marks.find_one({'mark': e.mark, 'date': e.date, 'fsrar': e.fsrar}):
+            db.marks.insert_one(vars(e))
+
+        # Вывести марки без дублей
+        if e.mark not in current_marks:
+            # Опционально вывести чеки по маркам
+            cheques = get_cheques_from_ukm(ukm, e.mark) if full else []
+            mark_text_result = compose_error_result(e.mark, e.error, cheques)
+            current_results.append(mark_text_result)
+
+            current_marks.append(e.mark)
+    return current_results, len(current_marks)
+
+
 def process_utm_log_file(filename: str, ukm: str, is_full_check: bool):
     """ Ошибки в transport_transaction по маркам"""
     current_utm_results = []
@@ -908,12 +1026,16 @@ def process_utm_log_file(filename: str, ukm: str, is_full_check: bool):
 
                 error_text = search_error_line(line, re_error)
                 if error_text is not None:
-
+                    error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
                     try:
                         _, title, error_line = error_text.split(':')
                         split_results = error_line.split(',')
                         for mark_res in split_results:
                             mark, description = split_error_for_marks(mark_res)
+                            m = MarkErrors(error_time, description, mark)
+                            if not db.marks.find_one({'mark': mark, 'date': error_time}):
+                                db.marks.insert_one(vars(m))
+
                             # пропускаем повторяющиеся марки
                             if mark not in current_utm_mark_errors:
                                 cheques = get_cheques_from_ukm(ukm, mark) if is_full_check else []
@@ -922,6 +1044,10 @@ def process_utm_log_file(filename: str, ukm: str, is_full_check: bool):
                                 current_utm_mark_errors.append(mark)
 
                     except ValueError:
+                        m = MarkErrors(error_time, description)
+                        if not db.marks.find_one({'description': description, 'date': error_time}):
+                            db.marks.insert_one(vars(m))
+
                         current_utm_results.append(f'<strong>Не удалось обработать ошибку</strong> {error_text}')
 
             summary = f'Всего чеков: {cheques_counter}, ошибок {len(current_utm_results)}'
@@ -966,10 +1092,17 @@ def get_utm_errors():
             utm = [current, ]
 
         for u in utm:
-            transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
+            # transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
+            transport_log = 'transport_transaction.log'
             utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
-            summary, utm_result = process_utm_log_file(transport_log, u.ukm_host(), get_ukm_cheques)
-            results[utm_header + summary] = utm_result
+
+            errors_found, checks, err = parse_log_for_errors(transport_log)
+            errors_objects = parse_errors(errors_found, u.fsrar)
+            error_results, marks = process_errors(errors_objects, get_ukm_cheques, u.ukm_host())
+            summary = err if err is not None else f'Всего чеков: {checks}, ошибок {len(errors_objects)}, уникальных {marks}'
+            # summary, utm_result = process_utm_log_file(transport_log, u.ukm_host(), get_ukm_cheques)
+            # results[utm_header + summary] = utm_result
+            results[utm_header + summary] = error_results
 
         params['results'] = results
         params['total'] = len(results)

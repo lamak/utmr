@@ -934,7 +934,6 @@ def parse_log_for_errors(filename: str) -> (list, int, str):
     try:
         with open(filename, encoding="utf8") as file:
             cheque_text = 'Получен чек.'
-            # cheques_counter = len([x for x in file.readlines() if cheque_text in x])
 
             for line in file.readlines():
                 if cheque_text in line:
@@ -966,22 +965,7 @@ def parse_errors(errors: list, fsrar: str):
                 mark, description = split_error_for_marks(mark_res)
                 processed_errors.append(MarkErrors(error_time, fsrar, description, mark))
 
-                # m = MarkErrors(error_time, description, mark)
-                # if not db.marks.find_one({'mark': mark, 'date': error_time}):
-                #     db.marks.insert_one(vars(m))
-
-                # пропускаем повторяющиеся марки
-                # if mark not in current_utm_mark_errors:
-                #     cheques = get_cheques_from_ukm(ukm, mark) if is_full_check else []
-                #     mark_text_result = compose_error_result(mark, description, cheques)
-                #     # current_utm_results.append(mark_text_result)
-                #     # current_utm_mark_errors.append(mark)
-
         except ValueError:
-            # m = MarkErrors(error_time, description)
-            # if not db.marks.find_one({'description': description, 'date': error_time}):
-            #     db.marks.insert_one(vars(m))
-            # current_utm_results.append(f'<strong>Не удалось обработать ошибку</strong> {error_text}')
             processed_errors.append(MarkErrors(error_time, fsrar, 'Не удалось обработать ошибку: ' + error_text))
 
     return processed_errors
@@ -1007,55 +991,6 @@ def process_errors(errors: list, full: bool, ukm: str):
 
             current_marks.append(e.mark)
     return current_results, len(current_marks)
-
-
-def process_utm_log_file(filename: str, ukm: str, is_full_check: bool):
-    """ Ошибки в transport_transaction по маркам"""
-    current_utm_results = []
-
-    try:
-        with open(filename, encoding="utf8") as file:
-            re_error = re.compile('<error>(.*)</error>')
-            cheque_text = 'Получен чек.'
-            current_utm_mark_errors = []
-            cheques_counter = 0
-
-            for line in file.readlines():
-                if cheque_text in line:
-                    cheques_counter += 1
-
-                error_text = search_error_line(line, re_error)
-                if error_text is not None:
-                    error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
-                    try:
-                        _, title, error_line = error_text.split(':')
-                        split_results = error_line.split(',')
-                        for mark_res in split_results:
-                            mark, description = split_error_for_marks(mark_res)
-                            m = MarkErrors(error_time, description, mark)
-                            if not db.marks.find_one({'mark': mark, 'date': error_time}):
-                                db.marks.insert_one(vars(m))
-
-                            # пропускаем повторяющиеся марки
-                            if mark not in current_utm_mark_errors:
-                                cheques = get_cheques_from_ukm(ukm, mark) if is_full_check else []
-                                mark_text_result = compose_error_result(mark, description, cheques)
-                                current_utm_results.append(mark_text_result)
-                                current_utm_mark_errors.append(mark)
-
-                    except ValueError:
-                        m = MarkErrors(error_time, description)
-                        if not db.marks.find_one({'description': description, 'date': error_time}):
-                            db.marks.insert_one(vars(m))
-
-                        current_utm_results.append(f'<strong>Не удалось обработать ошибку</strong> {error_text}')
-
-            summary = f'Всего чеков: {cheques_counter}, ошибок {len(current_utm_results)}'
-
-    except FileNotFoundError:
-        summary = 'недоступен или журнал не найден'
-
-    return summary, set(current_utm_results)
 
 
 @app.route('/utm_logs', methods=['GET', 'POST'])
@@ -1100,8 +1035,6 @@ def get_utm_errors():
             errors_objects = parse_errors(errors_found, u.fsrar)
             error_results, marks = process_errors(errors_objects, get_ukm_cheques, u.ukm_host())
             summary = err if err is not None else f'Всего чеков: {checks}, ошибок {len(errors_objects)}, уникальных {marks}'
-            # summary, utm_result = process_utm_log_file(transport_log, u.ukm_host(), get_ukm_cheques)
-            # results[utm_header + summary] = utm_result
             results[utm_header + summary] = error_results
 
         params['results'] = results

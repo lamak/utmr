@@ -153,7 +153,7 @@ def get_transport_transaction_filenames(basename: str = 'transport_transaction.l
 def extract_transactions(log_path: str, fsrar: str):
     """ Распаковка zip журналов локально для архива, без перезаписи """
     filename = log_path.split('/')[-1]
-    local_unzip_path = f'unzip/{fsrar}/'
+    local_unzip_path = f'utm_logs/{fsrar}/'
     local_unzipped_file = f'{local_unzip_path}{filename[:-4]}'
     if not os.path.isfile(local_unzipped_file):
         with zipfile.ZipFile(log_path, 'r') as zip_ref:

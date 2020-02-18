@@ -504,10 +504,9 @@ def compose_cheque_link(ukm_cheque: dict) -> str:
     return f'<a href="{ukm_cheque["url"]}">{txt}</a>' if ukm_cheque["url"] else txt
 
 
-def compose_error_result(mark: str, desc: str, cheques: Optional[list]) -> str:
+def compose_error_result(error_date: datetime, mark: str, desc: str, cheques: Optional[list]) -> str:
     """ Результат по ошибке вместе с чеками по найденной марке"""
-    res = f'<strong>{desc}</strong>: <code>{mark}</code>'
-
+    res = f'{error_date}<br><strong>{desc}</strong>: <code>{mark if mark is not None else ""}</code>'
     if cheques is None:
         res = res + f'<br><strong>Не удалось получить чеки из УКМ</strong>'
 
@@ -537,8 +536,8 @@ def process_errors(errors: list, full: bool, ukm: str):
         # Вывести марки без дублей
         if e.mark not in current_marks:
             # Опционально вывести чеки по маркам
-            cheques = get_cheques_from_ukm(ukm, e.mark) if full else []
-            mark_text_result = compose_error_result(e.mark, e.error, cheques)
+            cheques = get_cheques_from_ukm(ukm, e.mark) if full and e.mark is not None else []
+            mark_text_result = compose_error_result(e.date, e.mark, e.error, cheques)
             current_results.append(mark_text_result)
 
             current_marks.append(e.mark)

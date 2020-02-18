@@ -7,26 +7,25 @@
         <label for="fsrar">Выберите УТМ торговый точки</label>
         <p>{{ form.fsrar(class="form-control") }}</p>
         <p>{{ form.all() }} Все УТМ</p>
-        <p>{{ form.yesterday() }} Предыдущий день</p>
         <p><input type="submit" value="Получить" class="btn btn-primary"></p>
     </form>
     {% if results %}
         <h1>Результаты {{ date }}: </h1>
         <p>ТТ с ошибками: {{ total }} Ошибок всего: {{ total_errors }}
-        {% if results is not none %}
+            {% if results is not none %}
                 {% for key, value in results.items() %}
-                <div>
-                    <b>{{ key|safe }}</b><br>
-                    {%  for v in value %}
-                        <hr><span class="help-block">{{ v|safe }}</span>
-                    {% endfor %}
-                </div>
-                <hr>
-            {% endfor %}
+                    <div>
+                        <b>{{ key|safe }}</b><br>
+                        {% for v in value %}
+                            <hr><span class="help-block">{{ v|safe }}</span>
+                        {% endfor %}
+                    </div>
+                    <hr>
+                {% endfor %}
 
-        {% else %}
-        <p>Нет результатов</p>
-        {% endif %}
+            {% else %}
+                <p>Нет результатов</p>
+            {% endif %}
     {% endif %}
 
 

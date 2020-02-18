@@ -6,7 +6,6 @@ import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
 from typing import Optional
-from pymongo import MongoClient
 
 import MySQLdb
 import MySQLdb.cursors as cursors
@@ -17,6 +16,7 @@ from flask import Flask, Markup, flash, request, redirect, url_for, send_from_di
 from flask_wtf import FlaskForm
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
+from pymongo import MongoClient
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
 from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
@@ -54,7 +54,7 @@ app.config['RESULT_FOLDER'] = RESULT_FOLDER
 
 app.secret_key = 'dev'
 
-logging.basicConfig(filename='log', level=logging.WARNING, format='%(asctime)s %(levelname)s: %(message)s')
+logging.basicConfig(filename='app.log', level=logging.WARNING, format='%(asctime)s %(levelname)s: %(message)s')
 
 
 def create_folder(dirname: str):
@@ -108,6 +108,9 @@ class Utm:
     def xml_url(self):
         return self.url() + '/xml'
 
+    def log_dir(self):
+        return f'//{self.host}.{DOMAIN}/{UTM_LOG_PATH}'
+
 
 class Result:
     """ Результаты опроса УТМ
@@ -150,6 +153,15 @@ class Result:
         d['last'] = True
         del d['utm']
         return d
+
+
+class MarkErrors:
+
+    def __init__(self, logdate, fsrar, error, mark=None):
+        self.fsrar = fsrar
+        self.date = logdate
+        self.error = error
+        self.mark = mark
 
 
 def get_utm_list(filename: str = UTMS_CONFIG):
@@ -436,6 +448,163 @@ def parse_nattn(url: str):
         except:
             flash('Ошибка обработки XML', url)
     return nattn_list
+
+
+def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
+    """ Выполнение запроса к MySQL """
+    mysql_config['host'] = ukm_hostname
+
+    try:
+        connection = MySQLdb.connect(**mysql_config)
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            data = cursor.fetchall()
+
+        connection.close()
+
+    except MySQLdb._exceptions.OperationalError as e:
+        logging.error(e)
+        data = None
+
+    return data
+
+
+def get_cheques_from_ukm(host: str, mark: str) -> Optional[list]:
+    """ Получение списка чеков"""
+    query = f"""
+        SELECT 
+            trm_out_receipt_header.date,
+            trm_out_receipt_item.name,
+            trm_out_receipt_header.type,
+            trm_out_receipt_footer.result, 
+            trm_out_receipt_egais.url
+          FROM trm_out_receipt_item_egais
+          left outer JOIN trm_out_receipt_item ON trm_out_receipt_item_egais.id = trm_out_receipt_item.id AND trm_out_receipt_item_egais.cash_id = trm_out_receipt_item.cash_id
+          left outer JOIN trm_out_receipt_header ON trm_out_receipt_item.receipt_header = trm_out_receipt_header.id AND trm_out_receipt_item.cash_id = trm_out_receipt_header.cash_id
+          left outer JOIN trm_out_receipt_footer ON trm_out_receipt_item.receipt_header = trm_out_receipt_footer.id AND trm_out_receipt_item.cash_id = trm_out_receipt_footer.cash_id
+          left outer JOIN trm_out_receipt_egais ON trm_out_receipt_item.receipt_header = trm_out_receipt_egais.id AND trm_out_receipt_item.cash_id = trm_out_receipt_egais.cash_id
+          where egais_barcode like '%{mark}%'
+          order by trm_out_receipt_header.date asc
+    """
+    return get_mysql_data(host, query)
+
+
+def get_marks_from_errors(mark_res: str) -> (str, str):
+    """ Выделение марки и описания ошибки из ошибки лога УТМ"""
+    description, mark = mark_res.split('(')
+    description = description.strip(' ')
+    mark = mark.strip(')')
+    return mark, description
+
+
+def compose_cheque_link(ukm_cheque: dict) -> str:
+    """ Формирование строки - ссылки для чеков УКМ"""
+    txt = f'{ukm_cheque["date"]} {ukm_cheque["name"]} — {"Возврат" if ukm_cheque["type"] == 4 else "Продажа"} — {"Завершен" if ukm_cheque["result"] == 0 else "Аннулирован"}'
+    return f'<a href="{ukm_cheque["url"]}">{txt}</a>' if ukm_cheque["url"] else txt
+
+
+def compose_error_result(mark: str, desc: str, cheques: Optional[list]) -> str:
+    """ Результат по ошибке вместе с чеками по найденной марке"""
+    res = f'<strong>{desc}</strong>: <code>{mark}</code>'
+
+    if cheques is None:
+        res = res + f'<br><strong>Не удалось получить чеки из УКМ</strong>'
+
+    if cheques:
+        cheques_text = [compose_cheque_link(c) for c in cheques]
+        res = res + f'<br><strong>Сведения из УКМ:</strong><ol><li>{"<li>".join(cheques_text)}</ol>'
+    return res
+
+
+def catch_error_line(line: str, re_err):
+    """ Поиск ошибок в строке и возврат текста ошибки"""
+    error_result = re_err.search(line)
+    return error_result.groups()[0] if error_result else None
+
+
+def parse_log_for_errors(filename: str) -> (list, int, str):
+    """ Возвращаем список событий с ошибками, кол-во чеков в логе"""
+    err = None
+    cheques_counter = 0
+    current_utm_mark_errors = []
+    re_error = re.compile('<error>(.*)</error>')
+
+    try:
+        with open(filename, encoding="utf8") as file:
+            cheque_text = 'Получен чек.'
+
+            for line in file.readlines():
+                if cheque_text in line:
+                    cheques_counter += 1
+
+                else:
+                    error_text = catch_error_line(line, re_error)
+                    if error_text is not None:
+                        error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
+                        current_utm_mark_errors.append([error_time, error_text])
+
+    except FileNotFoundError:
+        err = 'недоступен или журнал не найден'
+
+    return current_utm_mark_errors, cheques_counter, err
+
+
+def parse_errors(errors: list, fsrar: str):
+    """ собираем список объектов ошибок для дальнешей обработки"""
+    processed_errors = []
+    nonvalid = 'Невалидные марки'
+    bad_time = 'продажа в запрещенное время'
+    no_filter = 'Настройки еще не обновлены'
+    no_key = 'Ошибка поиска модели'
+    for e in errors:
+        error_text = e[1]
+        error_time = e[0]
+
+        try:
+            if nonvalid in error_text:
+                start, stop = error_text.find('['), error_text.find(']')
+                marks = error_text[start + 1:stop].split(', ')
+                for m in marks:
+                    processed_errors.append(MarkErrors(error_time, fsrar, nonvalid, m))
+            elif bad_time in error_text:
+                processed_errors.append(MarkErrors(error_time, fsrar, bad_time))
+            elif no_filter in error_text:
+                processed_errors.append(MarkErrors(error_time, fsrar, no_filter))
+            elif no_key in error_text:
+                processed_errors.append(MarkErrors(error_time, fsrar, no_key))
+            else:
+                _, title, error_line = error_text.split(':')
+                split_results = error_line.split(',')
+                for mark_res in split_results:
+                    mark, description = get_marks_from_errors(mark_res)
+                    processed_errors.append(MarkErrors(error_time, fsrar, description, mark))
+
+        except ValueError:
+            processed_errors.append(MarkErrors(error_time, fsrar, 'Не удалось обработать ошибку: ' + error_text))
+
+    return processed_errors
+
+
+def process_errors(errors: list, full: bool, ukm: str):
+    """ Обработка,запись, формирование сообщений
+    full означает, что нужно получать чеки по маркам УКМ
+    """
+    current_marks = []
+    current_results = []
+    for e in errors:
+        # Записываем в монгу все новые, с маркой или без
+        # if e.mark is None or not db.marks.find_one({'mark': e.mark, 'date': e.date, 'fsrar': e.fsrar}):
+        #     db.marks.insert_one(vars(e))
+
+        # Вывести марки без дублей
+        if e.mark not in current_marks:
+            # Опционально вывести чеки по маркам
+            cheques = get_cheques_from_ukm(ukm, e.mark) if full else []
+            mark_text_result = compose_error_result(e.mark, e.error, cheques)
+            current_results.append(mark_text_result)
+
+            current_marks.append(e.mark)
+    return current_results, len(current_marks)
 
 
 @app.route('/')
@@ -838,159 +1007,6 @@ def check_mark():
         logging.info(log)
 
     return render_template(**params)
-
-
-def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
-    """ Выполнение запроса к MySQL """
-    mysql_config['host'] = ukm_hostname
-
-    try:
-        connection = MySQLdb.connect(**mysql_config)
-        with connection.cursor() as cursor:
-            cursor.execute(query)
-            data = cursor.fetchall()
-
-        connection.close()
-
-    except MySQLdb._exceptions.OperationalError as e:
-        logging.error(e)
-        data = None
-
-    return data
-
-
-def get_cheques_from_ukm(host: str, mark: str) -> Optional[list]:
-    """ Получение списка чеков"""
-    query = f"""
-        SELECT 
-            trm_out_receipt_header.date,
-            trm_out_receipt_item.name,
-            trm_out_receipt_header.type,
-            trm_out_receipt_footer.result, 
-            trm_out_receipt_egais.url
-          FROM trm_out_receipt_item_egais
-          left outer JOIN trm_out_receipt_item ON trm_out_receipt_item_egais.id = trm_out_receipt_item.id AND trm_out_receipt_item_egais.cash_id = trm_out_receipt_item.cash_id
-          left outer JOIN trm_out_receipt_header ON trm_out_receipt_item.receipt_header = trm_out_receipt_header.id AND trm_out_receipt_item.cash_id = trm_out_receipt_header.cash_id
-          left outer JOIN trm_out_receipt_footer ON trm_out_receipt_item.receipt_header = trm_out_receipt_footer.id AND trm_out_receipt_item.cash_id = trm_out_receipt_footer.cash_id
-          left outer JOIN trm_out_receipt_egais ON trm_out_receipt_item.receipt_header = trm_out_receipt_egais.id AND trm_out_receipt_item.cash_id = trm_out_receipt_egais.cash_id
-          where egais_barcode like '%{mark}%'
-          order by trm_out_receipt_header.date asc
-    """
-    return get_mysql_data(host, query)
-
-
-def split_error_for_marks(mark_res: str) -> (str, str):
-    """ Выделение марки и описания ошибки из ошибки лога УТМ"""
-    description, mark = mark_res.split('(')
-    description = description.strip(' ')
-    mark = mark.strip(')')
-    return mark, description
-
-
-def compose_cheque_link(ukm_cheque: dict) -> str:
-    """ Формирование строки - ссылки для чеков УКМ"""
-    txt = f'{ukm_cheque["date"]} {ukm_cheque["name"]} — {"Возврат" if ukm_cheque["type"] == 4 else "Продажа"} — {"Завершен" if ukm_cheque["result"] == 0 else "Аннулирован"}'
-    return f'<a href="{ukm_cheque["url"]}">{txt}</a>' if ukm_cheque["url"] else txt
-
-
-def compose_error_result(mark: str, desc: str, cheques: Optional[list]) -> str:
-    """ Результат по ошибке вместе с чеками по найденной марке"""
-    res = f'<strong>{desc}</strong>: <code>{mark}</code>'
-
-    if cheques is None:
-        res = res + f'<br><strong>Не удалось получить чеки из УКМ</strong>'
-
-    if cheques:
-        cheques_text = [compose_cheque_link(c) for c in cheques]
-        res = res + f'<br><strong>Сведения из УКМ:</strong><ol><li>{"<li>".join(cheques_text)}</ol>'
-    return res
-
-
-def search_error_line(line: str, re_err):
-    """ Поиск ошибок в строке и возврат текста ошибки"""
-    error_result = re_err.search(line)
-    return error_result.groups()[0] if error_result else None
-
-
-class MarkErrors:
-
-    def __init__(self, logdate, fsrar, error, mark=None):
-        self.fsrar = fsrar
-        self.date = logdate
-        self.error = error
-        self.mark = mark
-
-    def compose_text(self):
-        return
-
-
-def parse_log_for_errors(filename: str) -> (list, int, str):
-    """ Возвращаем список событий с ошибками, кол-во чеков в логе"""
-    err = None
-    cheques_counter = 0
-    current_utm_mark_errors = []
-    re_error = re.compile('<error>(.*)</error>')
-
-    try:
-        with open(filename, encoding="utf8") as file:
-            cheque_text = 'Получен чек.'
-
-            for line in file.readlines():
-                if cheque_text in line:
-                    cheques_counter += 1
-
-                else:
-                    error_text = search_error_line(line, re_error)
-                    if error_text is not None:
-                        error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
-                        current_utm_mark_errors.append([error_time, error_text])
-
-    except FileNotFoundError:
-        err = 'недоступен или журнал не найден'
-
-    return current_utm_mark_errors, cheques_counter, err
-
-
-def parse_errors(errors: list, fsrar: str):
-    """ собираем список объектов ошибок для дальнешей обработки"""
-    processed_errors = []
-    for e in errors:
-        error_text = e[1]
-        error_time = e[0]
-
-        try:
-            _, title, error_line = error_text.split(':')
-            split_results = error_line.split(',')
-            for mark_res in split_results:
-                mark, description = split_error_for_marks(mark_res)
-                processed_errors.append(MarkErrors(error_time, fsrar, description, mark))
-
-        except ValueError:
-            processed_errors.append(MarkErrors(error_time, fsrar, 'Не удалось обработать ошибку: ' + error_text))
-
-    return processed_errors
-
-
-def process_errors(errors: list, full: bool, ukm: str):
-    """ Обработка,запись, формирование сообщений
-    full означает, что нужно получать чеки по маркам УКМ
-    """
-    current_marks = []
-    current_results = []
-    for e in errors:
-        # Записываем в монгу все новые, с маркой или без
-        if e.mark is None or not db.marks.find_one({'mark': e.mark, 'date': e.date, 'fsrar': e.fsrar}):
-            db.marks.insert_one(vars(e))
-
-        # Вывести марки без дублей
-        if e.mark not in current_marks:
-            # Опционально вывести чеки по маркам
-            cheques = get_cheques_from_ukm(ukm, e.mark) if full else []
-            mark_text_result = compose_error_result(e.mark, e.error, cheques)
-            current_results.append(mark_text_result)
-
-            current_marks.append(e.mark)
-    return current_results, len(current_marks)
 
 
 @app.route('/utm_logs', methods=['GET', 'POST'])

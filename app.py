@@ -174,10 +174,22 @@ class MarkErrors:
 
 
 def get_utm_list(filename: str = UTM_CONFIG):
+    """ Получение списка УТМ из файла настроек """
     with open(filename, 'r', encoding='utf-8') as f:
         utms = [Utm(*u.split(';')) for u in f.read().splitlines()]
         utms.sort(key=lambda utm: utm.title)
     return utms
+
+
+def import_utms_to_db():
+    """ Импорт УТМ из файла настроек в MongoDB """
+    utms = get_utm_list()
+    utms.sort(key=lambda utm: utm.fsrar)
+    for u in utms:
+        if not mongodb.utm.find_one({'fsrar': u.fsrar}):
+            mongodb.utm.insert_one(vars(u))
+        else:
+            logging.error(f'УТМ уже существует в БД {u.fsrar}')
 
 
 class FsrarForm(FlaskForm):

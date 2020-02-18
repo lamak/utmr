@@ -97,6 +97,7 @@ utmr/__pycache__/
 utmr/env/
 
 # logs
+log
 app.log
 mark.log
 

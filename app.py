@@ -1011,9 +1011,9 @@ def check_mark():
 
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
-    form = TransactionsErrorForm()
+    form = AllFsrarForm()
     form.fsrar.data = request.args.get('fsrar')
-    form.yesterday.data = request.args.get('yesterday')
+    # form.yesterday.data = request.args.get('yesterday')
 
     params = {
         'template_name_or_list': 'utm_log.html',
@@ -1024,15 +1024,15 @@ def get_utm_errors():
     if request.method == 'POST':
         results = dict()
         get_ukm_cheques = True
-        today = datetime.now()
+        # today = datetime.now()
 
         log_name = 'transport_transaction.log'
-        params['date'] = today.strftime(HUMAN_DATE_FORMAT)
+        params['date'] = datetime.now().strftime(HUMAN_DATE_FORMAT)
 
-        if request.form.get('yesterday'):
-            yesterday = today - timedelta(days=1)
-            log_name = f'{log_name}.{yesterday.strftime(LOGFILE_DATE_FORMAT)}'
-            params['date'] = yesterday.strftime(HUMAN_DATE_FORMAT)
+        # if request.form.get('yesterday'):
+        #     yesterday = today - timedelta(days=1)
+        #     log_name = f'{log_name}.{yesterday.strftime(LOGFILE_DATE_FORMAT)}'
+        #     params['date'] = yesterday.strftime(HUMAN_DATE_FORMAT)
 
         if request.form.get('all'):
             utm = get_utm_list()
@@ -1043,8 +1043,7 @@ def get_utm_errors():
             utm = [current, ]
 
         for u in utm:
-            # transport_log = f'//{u.host}.{DOMAIN}/{UTM_LOG_PATH}{log_name}'
-            transport_log = 'transport_transaction.log'
+            transport_log = u.log_dir() + log_name
             utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
 
             errors_found, checks, err = parse_log_for_errors(transport_log)

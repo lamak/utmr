@@ -529,9 +529,6 @@ def process_errors(errors: list, full: bool, ukm: str):
     current_marks = []
     current_results = []
     for e in errors:
-        # Записываем в монгу все новые, с маркой или без
-        # if e.mark is None or not db.marks.find_one({'mark': e.mark, 'date': e.date, 'fsrar': e.fsrar}):
-        #     db.marks.insert_one(vars(e))
 
         # Вывести марки без дублей
         if e.mark not in current_marks:
@@ -539,8 +536,8 @@ def process_errors(errors: list, full: bool, ukm: str):
             cheques = get_cheques_from_ukm(ukm, e.mark) if full and e.mark is not None else []
             mark_text_result = compose_error_result(e.date, e.mark, e.error, cheques)
             current_results.append(mark_text_result)
-
             current_marks.append(e.mark)
+
     return current_results, len(current_marks)
 
 
@@ -961,7 +958,6 @@ def get_utm_errors():
         from grab_logs import parse_log_for_errors, parse_errors
         results = dict()
         get_ukm_cheques = True
-        # today = datetime.now()
 
         log_name = 'transport_transaction.log'
         params['date'] = datetime.now().strftime(HUMAN_DATE_FORMAT)

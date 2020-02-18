@@ -471,7 +471,7 @@ def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
 
         connection.close()
 
-    except MySQLdb._exceptions.OperationalError as e:
+    except (MySQLdb._exceptions.OperationalError, TypeError) as e:
         logging.error(e)
         data = None
 

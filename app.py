@@ -926,12 +926,12 @@ def status():
             flash(log)
             logging.info(log)
 
-        if 'gost' in request.form:
-            results.sort(key=lambda result: result.gost)
+        if 'title' in request.form:
+            results.sort(key=lambda result: result.title)
         elif 'fsrar' in request.form:
             results.sort(key=lambda result: result.fsrar)
-        elif 'filter' in request.form:
-            results.sort(key=lambda result: result.filter)
+        elif 'gost' in request.form:
+            results.sort(key=lambda result: result.gost)
 
         params['err'] = any([res.error != '' for res in results])
         params['results'] = results

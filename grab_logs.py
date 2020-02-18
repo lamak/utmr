@@ -187,18 +187,6 @@ def get_existing_transactions_files(utm: Utm, filenames: List[str]):
     return result
 
 
-def process_transport_transaction_log_old(fsrar, file: str):
-    """ Сохранение ошибок из файла журанала транзакций УТМ в MongoDB  """
-    errors_found, _, _ = parse_log_for_errors(file)
-    errors_objects = parse_errors(errors_found, fsrar)
-    for e in errors_objects:
-        if not db.mark_errors.find_one({'date': e.date, 'fsrar': fsrar}):
-            db.mark_errors.insert_one(vars(e))
-            logging.info(f'Добавлена {fsrar} {e.error} {e.mark}')
-        else:
-            logging.error(f'Ошибка уже в журнале {fsrar} {e.error} {e.mark}')
-
-
 def send_email(subject: str, text: str, mail_from: str = 'balega_aa@remi.ru', mail_to: str = 'balega_aa@remi.ru'):
     """ Отправка сообщений об ошибках """
 
@@ -217,7 +205,7 @@ def send_email(subject: str, text: str, mail_from: str = 'balega_aa@remi.ru', ma
 
 def process_transport_transaction_log(u: Utm, file: str):
     """ Сохранение ошибок из файла журанала транзакций УТМ в MongoDB  """
-    errors_found = parse_log_for_errors(file)
+    errors_found, _, _ = parse_log_for_errors(file)
     errors_objects = parse_errors(errors_found, u.fsrar)
 
     errors_to_mail = []

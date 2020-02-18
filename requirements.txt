@@ -7,3 +7,4 @@ grab
 requests
 pycurl
 pymongo
+mysqlclient

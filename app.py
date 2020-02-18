@@ -22,14 +22,24 @@ from werkzeug.utils import secure_filename
 from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
 from wtforms.validators import DataRequired, Length, Regexp
 
-UTMS_CONFIG = 'config'
-UPLOAD_FOLDER = 'uploads'
-RESULT_FOLDER = 'results'
-DOMAIN = 'severotorg.local'
-UTM_PORT = '8080'
-UTM_LOG_PATH = 'c$/utm/transporter/l/'
-CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE') or 'sku-body-template.xlsx'
-CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH') or './'
+LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
+UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
+RESULT_FOLDER = os.environ.get('RESULT_FOLDER', 'results')
+
+UTM_PORT = os.environ.get('UTM_PORT', '8080')
+UTM_CONFIG = os.environ.get('UTM_CONFIG', 'config')
+UTM_LOG_PATH = os.environ.get('UTM_PORT', 'c$/utm/transporter/l/')
+
+CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH', './')
+CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE', 'sku-body-template.xlsx')
+
+CONVERTER_DATE_FORMAT = '%Y%m%d'
+LOGFILE_DATE_FORMAT = '%Y_%m_%d'
+HUMAN_DATE_FORMAT = '%Y-%m-%d'
+ALLOWED_EXTENSIONS = {'xlsx', }
+WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
+
+# MySQL config for UKM
 mysql_config = {
     'db': os.environ.get('UKM_DB'),
     'user': os.environ.get('UKM_USER'),
@@ -39,22 +49,22 @@ mysql_config = {
     'use_unicode': True,
 }
 
-CONVERTER_DATE_FORMAT = '%Y%m%d'
-LOGFILE_DATE_FORMAT = '%Y_%m_%d'
-HUMAN_DATE_FORMAT = '%Y-%m-%d'
-ALLOWED_EXTENSIONS = {'xlsx', }
-WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
-
-client = MongoClient()
+# Mongo Setup
+mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
+client = MongoClient(mongo_conn)
 db = client.tempdb
+
+logging.basicConfig(
+    filename='app.log',
+    level=logging.WARNING,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RESULT_FOLDER'] = RESULT_FOLDER
 
 app.secret_key = 'dev'
-
-logging.basicConfig(filename='app.log', level=logging.WARNING, format='%(asctime)s %(levelname)s: %(message)s')
 
 
 def create_folder(dirname: str):
@@ -85,10 +95,10 @@ class Utm:
         return f'{self.fsrar} {self.title}'
 
     def url(self):
-        return f'http://{self.host}.{DOMAIN}:{UTM_PORT}'
+        return f'http://{self.host}.{LOCAL_DOMAIN}:{UTM_PORT}'
 
     def ukm_host(self):
-        return f'{self.ukm}.{DOMAIN}'
+        return f'{self.ukm}.{LOCAL_DOMAIN}'
 
     def build_url(self):
         return self.url() + '/?b'
@@ -109,7 +119,7 @@ class Utm:
         return self.url() + '/xml'
 
     def log_dir(self):
-        return f'//{self.host}.{DOMAIN}/{UTM_LOG_PATH}'
+        return f'//{self.host}.{LOCAL_DOMAIN}/{UTM_LOG_PATH}'
 
 
 class Result:
@@ -164,7 +174,7 @@ class MarkErrors:
         self.mark = mark
 
 
-def get_utm_list(filename: str = UTMS_CONFIG):
+def get_utm_list(filename: str = UTM_CONFIG):
     with open(filename, 'r', encoding='utf-8') as f:
         utms = [Utm(*u.split(';')) for u in f.read().splitlines()]
         utms.sort(key=lambda utm: utm.title)
@@ -239,7 +249,7 @@ def get_xml_template(filename: str) -> str:
 
 def get_instance(fsrar: str) -> Optional[Utm]:
     """ Получаем УТМ из формы по ФСРАР ИД"""
-    return next((x for x in get_utm_list(UTMS_CONFIG) if x.fsrar == fsrar), None)
+    return next((x for x in get_utm_list(UTM_CONFIG) if x.fsrar == fsrar), None)
 
 
 def get_limit(field: str, max_limit: int, default_limit: int) -> int:

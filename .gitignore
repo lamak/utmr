@@ -95,11 +95,15 @@ ENV/
 utmr.egg-info/
 utmr/__pycache__/
 utmr/env/
-log
+
+# logs
+app.log
+mark.log
 
 # Working files
 results/
 uploads/
+utm_logs/
 
 # Config / utms
 config

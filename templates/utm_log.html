@@ -11,8 +11,8 @@
     </form>
     {% if results %}
         <h1>Результаты {{ date }}: </h1>
-        <p>ТТ с ошибками: {{ total }} Ошибок всего: {{ total_errors }}
-            {% if results is not none %}
+        <p>Всего ТТ: {{ total }}, ТТ c ошибками: {{ error_count }} Ошибок всего: {{ total_errors }}
+        {% if results is not none %}
                 {% for key, value in results.items() %}
                     <div>
                         <b>{{ key|safe }}</b><br>

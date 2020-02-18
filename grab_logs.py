@@ -2,16 +2,16 @@ import logging
 import os
 import re
 import smtplib
-import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.header import Header
 from email.mime.text import MIMEText
-from typing import List, Optional
+from typing import Optional, Tuple
 
 from pymongo import MongoClient
 
 # UTM LOG
 UTM_LOG_PATH = os.environ.get('UTM_LOG_PATH', 'c$/utm/transporter/l/')
+UTM_LOG_NAME = os.environ.get('UTM_LOG_NAME', 'transport_transaction.log')
 UTM_CONFIG = os.environ.get('UTM_LOG_PATH', 'config')
 DOMAIN = os.environ.get('USERDNSDOMAIN')
 
@@ -146,45 +146,22 @@ def parse_errors(errors: list, fsrar: str):
     return processed_errors
 
 
-def get_transport_transaction_filenames(basename: str = 'transport_transaction.log') -> List[str]:
-    """ Список файлов журналов за последние 4 дня, включая """
-    today = datetime.now()
-    log_date_format = '%Y_%m_%d'
-
-    f1 = f'{basename}.{(today - timedelta(days=1)).strftime(log_date_format)}'
-    f2 = f'{basename}.{(today - timedelta(days=2)).strftime(log_date_format)}.zip'
-    f3 = f'{basename}.{(today - timedelta(days=3)).strftime(log_date_format)}.zip'
-    return [basename, f1, f2, f3]
+def get_transport_transaction_filenames(current: str = UTM_LOG_NAME) -> Tuple[str]:
+    """ Список файлов журналов за последние 2 дня"""
+    # todo: при штатном запуске не существует, может понадобится при пропущенном запуске
+    # yesterday = f'{current}.{(datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")}'
+    return current,
 
 
-def extract_transactions(log_path: str, fsrar: str):
-    """ Распаковка zip журналов локально для архива, без перезаписи """
-    filename = log_path.split('/')[-1]
-    local_unzip_path = f'utm_logs/{fsrar}/'
-    local_unzipped_file = f'{local_unzip_path}{filename[:-4]}'
-    if not os.path.isfile(local_unzipped_file):
-        with zipfile.ZipFile(log_path, 'r') as zip_ref:
-            zip_ref.extractall(local_unzip_path)
-            return local_unzipped_file
+def check_file_exist(utm: Utm, filename: str):
+    """ Проверяем существование файла журнала """
 
+    filename = utm.log_dir() + filename
 
-def get_existing_transactions_files(utm: Utm, filenames: List[str]):
-    """ Получение списка существующих журналов транзакций для УТМ """
-    result = []
-    log_dir = utm.log_dir()
-    if os.path.isdir(log_dir):
-        for file in filenames:
-            log_path = log_dir + file
-            if os.path.isfile(log_path):
-                if 'zip' not in log_path:
-                    result.append(log_path)
-                else:
-                    result.append(extract_transactions(log_path, utm.fsrar))
+    if not os.path.isfile(filename):
+        logging.error(f'Недоступен файл {filename}')
 
-    else:
-        logging.error(f'Недоступен путь {log_dir}')
-
-    return result
+    return filename
 
 
 def send_email(subject: str, text: str, mail_from: str = 'balega_aa@remi.ru', mail_to: str = 'balega_aa@remi.ru'):
@@ -204,34 +181,34 @@ def send_email(subject: str, text: str, mail_from: str = 'balega_aa@remi.ru', ma
 
 
 def process_transport_transaction_log(u: Utm, file: str):
-    """ Сохранение ошибок из файла журанала транзакций УТМ в MongoDB  """
-    errors_found, _, _ = parse_log_for_errors(file)
-    errors_objects = parse_errors(errors_found, u.fsrar)
+    """ Сохранение ошибок из файла журнала транзакций УТМ в MongoDB и отправка писем """
 
-    errors_to_mail = []
-    for e in errors_objects:
-        if not db.mark_errors.find_one({'date': e.date, 'fsrar': u.fsrar}):
-            db.mark_errors.insert_one(vars(e))
-            errors_to_mail.append(e)
-            logging.info(f'Добавлена {u.fsrar} {e.error} {e.mark}')
+    file = check_file_exist(u, file)
 
-        else:
-            logging.error(f'Ошибка уже в журнале {u.fsrar} {e.error} {e.mark}')
+    if file is not None:
+        errors_found, _, _ = parse_log_for_errors(file)
+        errors_objects = parse_errors(errors_found, u.fsrar)
 
-    if errors_to_mail:
-        human_date = '%Y.%m.%d %H:%M'
-        message = '\n\n'.join([f'{e.date.strftime(human_date)} Ошибка "{e.error}"\n{e.mark}' for e in errors_to_mail])
-        message = f'{u.title} {u.fsrar} {u.host}\n При проверке были найдены следующие ошибки:\n\n' + message
-        subj = f'Ошибка УТМ {u.title} {datetime.today().strftime("%Y.%m.%d")}'
-        send_email(subj, message, MAIL_FROM, MAIL_TO)
-        logging.info(f'Отправлено сообщение об {len(errors_to_mail)} ошибках')
+        err_to_mail = []
+        for e in errors_objects:
+            if not db.mark_errors.find_one({'date': e.date, 'fsrar': u.fsrar}):
+                db.mark_errors.insert_one(vars(e))
+                err_to_mail.append(e)
+                logging.info(f'Добавлена {u.fsrar} {e.error} {e.mark}')
+
+        if err_to_mail:
+            human_date = '%Y.%m.%d %H:%M'
+            message = '\n\n'.join([f'{e.date.strftime(human_date)} Ошибка "{e.error}"\n{e.mark}' for e in err_to_mail])
+            message = f'{u.title} {u.fsrar} {u.host}\n При проверке были найдены следующие ошибки:\n\n' + message
+            subj = f'Ошибка УТМ {u.title} {datetime.today().strftime("%Y.%m.%d")}'
+            send_email(subj, message, MAIL_FROM, MAIL_TO)
+            logging.info(f'Отправлено сообщение об {len(err_to_mail)} ошибках')
 
 
-def process_utm(u: Utm, filenames: List[str]):
+def process_utm(u: Utm, filenames: Tuple[str]):
     """ Сбор и обработку журналов транзакций УТМ """
     logging.info(f'УТМ {u.host} {u.title} {u.fsrar}')
-    files = get_existing_transactions_files(u, filenames)
-    [process_transport_transaction_log(u, file) for file in files if file]
+    [process_transport_transaction_log(u, file) for file in filenames]
 
 
 def main():
@@ -240,5 +217,6 @@ def main():
     transport_transactions_files = get_transport_transaction_filenames()
     [process_utm(u, transport_transactions_files) for u in get_utm_list()]
     print(f'{datetime.now()} Done in {datetime.now() - start}')
+
 
 main()

@@ -6,3 +6,4 @@ flask_wtf
 grab
 requests
 pycurl
+pymongo

@@ -52,7 +52,7 @@ mysql_config = {
 # Mongo Setup
 mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
 client = MongoClient(mongo_conn)
-db = client.tempdb
+mongodb = client.tempdb
 
 logging.basicConfig(
     filename='app.log',
@@ -139,7 +139,7 @@ class Result:
         self.utm: Utm = utm  # fsrar, server, title
         self.legal: str = ''
         self.surname: str = ''
-        self.givenname: str = ''
+        self.given_name: str = ''
         self.gost: str = ''
         self.pki: str = ''
         self.cheques: str = ''
@@ -154,7 +154,7 @@ class Result:
         self.docs_in: int = 0
         self.docs_out: int = 0
         self.version = ''
-        self.changeset = ''
+        self.change_set = ''
         self.build = ''
         self.date = datetime.utcnow()
 
@@ -166,10 +166,9 @@ class Result:
 
 
 class MarkErrors:
-
-    def __init__(self, logdate, fsrar, error, mark=None):
+    def __init__(self, date, fsrar, error, mark=None):
         self.fsrar = fsrar
-        self.date = logdate
+        self.date = date
         self.error = error
         self.mark = mark
 
@@ -198,7 +197,7 @@ class UploadForm(FlaskForm):
 
 
 class RestsForm(FsrarForm):
-    alccode = StringField('alccode')
+    alc_code = StringField('alc_code')
     limit = IntegerField('limit')
 
 
@@ -281,7 +280,7 @@ def parse_utm(utm: Utm):
         # версия
         try:
             result.version = homepage.doc.select('//*[@id="home"]/div[1]/div[2]').text()
-            result.changeset = homepage.doc.select('//*[@id="home"]/div[2]/div[2]').text()
+            result.change_set = homepage.doc.select('//*[@id="home"]/div[2]/div[2]').text()
             result.build = homepage.doc.select('//*[@id="home"]/div[3]/div[2]').text()
         except DataNotFound:
             result.error.append('Не найдена информация о версии\n')
@@ -347,7 +346,7 @@ def parse_utm(utm: Utm):
 
             name_res = name.search(pre)
             if name_res is not None:
-                result.givenname = name_res.group()
+                result.given_name = name_res.group()
 
         except:
             result.error.append('Не найден сертификат организации\n')
@@ -919,8 +918,8 @@ def status():
 
         # сохраним результаты монге, для будущих поколений
         try:
-            db.results.update_many({}, {'$set': {'last': False}})
-            db.results.insert_many(text_results)
+            mongodb.results.update_many({}, {'$set': {'last': False}})
+            mongodb.results.insert_many(text_results)
         except:
             log = f"Не удалось записать результаты в БД"
             flash(log)
@@ -1083,7 +1082,7 @@ def get_rests():
         results = dict()
         exclude = ['Error']
 
-        search_alccode = request.form['alccode'].strip()
+        search_alc_code = request.form['alc_code'].strip()
         limit = get_limit(request.form['limit'], 50, 10)
         utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
@@ -1100,13 +1099,13 @@ def get_rests():
                     rest_date = humanize_date(rests_shop.get('rst:RestsDate'))
 
                     for position in rests_shop.get('rst:Products').get('rst:ShopPosition'):
-                        alccode = position.get('rst:Product').get('pref:AlcCode')
+                        alc_code = position.get('rst:Product').get('pref:AlcCode')
                         quantity = position.get('rst:Quantity')
-                        if search_alccode in ('', alccode):
-                            if results.get(alccode, False):
-                                results[alccode][rest_date] = quantity
+                        if search_alc_code in ('', alc_code):
+                            if results.get(alc_code, False):
+                                results[alc_code][rest_date] = quantity
                             else:
-                                results[alccode] = {rest_date: quantity}
+                                results[alc_code] = {rest_date: quantity}
 
         params['results'] = results
 

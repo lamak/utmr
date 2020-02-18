@@ -49,7 +49,7 @@ mysql_config = {
     'use_unicode': True,
 }
 # Storage Type for utms
-UTMR_USE_DB = os.environ.get('UTMR_USE_DB', False)
+UTMR_USE_DB = int(os.environ.get('UTMR_USE_DB', False))
 
 # Mongo Setup
 mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
@@ -65,7 +65,7 @@ logging.basicConfig(
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RESULT_FOLDER'] = RESULT_FOLDER
-app.config['USE_MONGO'] = UTMR_USE_DB
+app.config['USE_DB'] = UTMR_USE_DB
 
 app.secret_key = 'dev'
 
@@ -178,7 +178,7 @@ class MarkErrors:
 
 def get_utm_list():
     """ Выбор источника УТМ, при отсутствии в БД будет попытка заполнить из файла """
-    if app.config['USE_MONGO']:
+    if app.config['USE_DB']:
         utms = get_utm_from_db()
         if not utms:
             import_utms_to_db()
@@ -194,9 +194,13 @@ def get_utm_from_db():
 
 def get_utm_from_file(filename: str = UTM_CONFIG):
     """ Получение списка УТМ из файла настроек """
-    with open(filename, 'r', encoding='utf-8') as config_file:
-        utms = [Utm(*u.split(';')) for u in config_file.read().splitlines()]
-        utms.sort(key=lambda utm: utm.title)
+    utms = []
+    try:
+        with open(filename, 'r', encoding='utf-8') as config_file:
+            utms = [Utm(*u.split(';')) for u in config_file.read().splitlines()]
+            utms.sort(key=lambda utm: utm.title)
+    except FileNotFoundError as e:
+        logging.error(e)
     return utms
 
 
@@ -209,7 +213,7 @@ def remove_id(d):
 
 def import_utms_to_db():
     """ Импорт УТМ из файла настроек в MongoDB """
-    utms = get_utm_list()
+    utms = get_utm_from_file()
     utms.sort(key=lambda utm: utm.fsrar)
     for u in utms:
         if not mongodb.utm.find_one({'fsrar': u.fsrar}):

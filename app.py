@@ -498,14 +498,6 @@ def get_cheques_from_ukm(host: str, mark: str) -> Optional[list]:
     return get_mysql_data(host, query)
 
 
-def get_marks_from_errors(mark_res: str) -> (str, str):
-    """ Выделение марки и описания ошибки из ошибки лога УТМ"""
-    description, mark = mark_res.split('(')
-    description = description.strip(' ')
-    mark = mark.strip(')')
-    return mark, description
-
-
 def compose_cheque_link(ukm_cheque: dict) -> str:
     """ Формирование строки - ссылки для чеков УКМ"""
     txt = f'{ukm_cheque["date"]} {ukm_cheque["name"]} — {"Возврат" if ukm_cheque["type"] == 4 else "Продажа"} — {"Завершен" if ukm_cheque["result"] == 0 else "Аннулирован"}'
@@ -529,69 +521,6 @@ def catch_error_line(line: str, re_err):
     """ Поиск ошибок в строке и возврат текста ошибки"""
     error_result = re_err.search(line)
     return error_result.groups()[0] if error_result else None
-
-
-def parse_log_for_errors(filename: str) -> (list, int, str):
-    """ Возвращаем список событий с ошибками, кол-во чеков в логе"""
-    err = None
-    cheques_counter = 0
-    current_utm_mark_errors = []
-    re_error = re.compile('<error>(.*)</error>')
-
-    try:
-        with open(filename, encoding="utf8") as file:
-            cheque_text = 'Получен чек.'
-
-            for line in file.readlines():
-                if cheque_text in line:
-                    cheques_counter += 1
-
-                else:
-                    error_text = catch_error_line(line, re_error)
-                    if error_text is not None:
-                        error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
-                        current_utm_mark_errors.append([error_time, error_text])
-
-    except FileNotFoundError:
-        err = 'недоступен или журнал не найден'
-
-    return current_utm_mark_errors, cheques_counter, err
-
-
-def parse_errors(errors: list, fsrar: str):
-    """ собираем список объектов ошибок для дальнешей обработки"""
-    processed_errors = []
-    nonvalid = 'Невалидные марки'
-    bad_time = 'продажа в запрещенное время'
-    no_filter = 'Настройки еще не обновлены'
-    no_key = 'Ошибка поиска модели'
-    for e in errors:
-        error_text = e[1]
-        error_time = e[0]
-
-        try:
-            if nonvalid in error_text:
-                start, stop = error_text.find('['), error_text.find(']')
-                marks = error_text[start + 1:stop].split(', ')
-                for m in marks:
-                    processed_errors.append(MarkErrors(error_time, fsrar, nonvalid, m))
-            elif bad_time in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, bad_time))
-            elif no_filter in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, no_filter))
-            elif no_key in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, no_key))
-            else:
-                _, title, error_line = error_text.split(':')
-                split_results = error_line.split(',')
-                for mark_res in split_results:
-                    mark, description = get_marks_from_errors(mark_res)
-                    processed_errors.append(MarkErrors(error_time, fsrar, description, mark))
-
-        except ValueError:
-            processed_errors.append(MarkErrors(error_time, fsrar, 'Не удалось обработать ошибку: ' + error_text))
-
-    return processed_errors
 
 
 def process_errors(errors: list, full: bool, ukm: str):
@@ -1030,6 +959,7 @@ def get_utm_errors():
     }
 
     if request.method == 'POST':
+        from grab_logs import parse_log_for_errors, parse_errors
         results = dict()
         get_ukm_cheques = True
         # today = datetime.now()

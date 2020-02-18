@@ -29,8 +29,6 @@ db = client.tempdb
 
 logging.basicConfig(filename='mark.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
-re_error = re.compile('<error>(.*)</error>')
-
 
 class Utm:
     """ УТМ
@@ -80,20 +78,30 @@ def get_marks_from_errors(mark_res: str) -> (str, str):
 
 def parse_log_for_errors(filename: str) -> (list, int, str):
     """ Возвращаем список событий с ошибками, кол-во чеков в логе"""
+    re_error = re.compile('<error>(.*)</error>')
     error_mark_events = []
+    cheques_counter = 0
+    err = None
 
     try:
         with open(filename, encoding="utf8") as file:
+            cheque_text = 'Получен чек.'
+
             for line in file.readlines():
-                error_text = catch_error_line(line, re_error)
-                if error_text is not None:
-                    error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
-                    error_mark_events.append([error_time, error_text])
+                if cheque_text in line:
+                    cheques_counter += 1
+
+                else:
+                    error_text = catch_error_line(line, re_error)
+                    if error_text is not None:
+                        error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
+                        error_mark_events.append([error_time, error_text])
 
     except (FileNotFoundError, TypeError):
-        logging.error(f'Недоступен или журнал не найден {filename}')
+        err = 'Недоступен или журнал не найден'
+        logging.error(f'{err} {filename}')
 
-    return error_mark_events
+    return error_mark_events, cheques_counter, err
 
 
 def parse_errors(errors: list, fsrar: str):
@@ -181,7 +189,7 @@ def get_existing_transactions_files(utm: Utm, filenames: List[str]):
 
 def process_transport_transaction_log_old(fsrar, file: str):
     """ Сохранение ошибок из файла журанала транзакций УТМ в MongoDB  """
-    errors_found = parse_log_for_errors(file)
+    errors_found, _, _ = parse_log_for_errors(file)
     errors_objects = parse_errors(errors_found, fsrar)
     for e in errors_objects:
         if not db.mark_errors.find_one({'date': e.date, 'fsrar': fsrar}):

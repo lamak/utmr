@@ -89,7 +89,6 @@ def parse_log_for_errors(filename: str) -> (list, int, str):
                 if error_text is not None:
                     error_time = datetime.strptime(line[0:19], '%Y-%m-%d %H:%M:%S')
                     error_mark_events.append([error_time, error_text])
-        # logging.info(f'Итого строк с ошибками: {filename} : {len(error_mark_events)}')
 
     except (FileNotFoundError, TypeError):
         logging.error(f'Недоступен или журнал не найден {filename}')

@@ -1022,7 +1022,6 @@ def check_mark():
 def get_utm_errors():
     form = AllFsrarForm()
     form.fsrar.data = request.args.get('fsrar')
-    # form.yesterday.data = request.args.get('yesterday')
 
     params = {
         'template_name_or_list': 'utm_log.html',
@@ -1037,11 +1036,6 @@ def get_utm_errors():
 
         log_name = 'transport_transaction.log'
         params['date'] = datetime.now().strftime(HUMAN_DATE_FORMAT)
-
-        # if request.form.get('yesterday'):
-        #     yesterday = today - timedelta(days=1)
-        #     log_name = f'{log_name}.{yesterday.strftime(LOGFILE_DATE_FORMAT)}'
-        #     params['date'] = yesterday.strftime(HUMAN_DATE_FORMAT)
 
         if request.form.get('all'):
             utm = get_utm_list()

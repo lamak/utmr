@@ -239,15 +239,19 @@ def import_utms_to_db():
 
 
 def create_update_config_utm(config, utm: Utm):
-    with open(config, 'r') as f:
-        lines = f.read().splitlines()
+    """ Создание или обновление конфиг файла """
+    if os.path.isfile(config):
+        with open(config, 'r') as f:
+            lines = f.read().splitlines()
 
-    with open(config, 'w') as f:
-        for l in lines:
-            if l.split(';')[0] != utm.fsrar:
-                f.write(l + '\n')
-        f.write(utm.to_csv())
-
+        with open(config, 'w') as f:
+            for l in lines:
+                if l.split(';')[0] != utm.fsrar:
+                    f.write(l + '\n')
+            f.write(utm.to_csv())
+    else:
+        with open(config, 'w') as f:
+            f.write(utm.to_csv())
 
 class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', choices=[(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in get_utm_list()])

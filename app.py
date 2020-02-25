@@ -306,7 +306,7 @@ class ChequeForm(FsrarForm):
 
 
 class CreateUpdateUtm(FlaskForm):
-    fsrar = StringField('fsrar', validators=[DataRequired(), Length(min=12, max=12)])
+    fsrar = StringField('fsrar', validators=[DataRequired()])
     title = StringField('title', validators=[DataRequired()])
     path = StringField('path', validators=[DataRequired()])
     host = StringField('host', validators=[DataRequired()])
@@ -1290,9 +1290,8 @@ def add_utm():
         'form': form
     }
 
-    if request.method == 'POST' and form.validate_on_submit():
-        new_utm = create_utm_from_request_form(requestrepeal.form)
-
+    if request.method == 'POST':
+        new_utm = create_utm_from_request_form(request.form)
         create_update_utm_db(mongodb, new_utm) if UTMR_USE_DB else create_update_config_utm(UTM_CONFIG, new_utm)
 
     return render_template(**params)

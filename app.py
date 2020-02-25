@@ -313,6 +313,14 @@ class CreateUpdateUtm(FlaskForm):
     ukm = StringField('path', validators=[DataRequired()])
 
 
+def create_utm_from_request_form(form) -> Utm:
+    import inspect
+    signature = inspect.signature(Utm.__init__)
+    form_params = signature.parameters.keys()
+    form_params.pop('self')
+    return Utm(**{parameter: form.get(parameter) for parameter in form})
+
+
 def validate_filename(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 

@@ -29,6 +29,7 @@ RESULT_FOLDER = os.environ.get('RESULT_FOLDER', 'results')
 UTM_PORT = os.environ.get('UTM_PORT', '8080')
 UTM_CONFIG = os.environ.get('UTM_CONFIG', 'config')
 UTM_LOG_PATH = os.environ.get('UTM_PORT', 'c$/utm/transporter/l/')
+DEFAULT_XML_PATH = os.environ.get('DEFAULT_XML_PATH')
 
 CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH', './')
 CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE', 'sku-body-template.xlsx')
@@ -88,7 +89,7 @@ class Utm:
         self.fsrar = fsrar
         self.host = host
         self.title = title
-        self.path = path
+        self.path = path or f'{DEFAULT_XML_PATH}{host.split("-")[0]}/in/'
         self.ukm = ukm
 
     def __str__(self):
@@ -218,6 +219,7 @@ def remove_id(d):
 
 
 def create_update_utm_db(conn, utm: Utm):
+    """ Создание или обновление УТМ в MongoDB"""
     query = {'fsrar': utm.fsrar}
     if not conn.utm.find_one(query):
         conn.utm.insert_one(vars(utm))
@@ -308,12 +310,13 @@ class ChequeForm(FsrarForm):
 class CreateUpdateUtm(FlaskForm):
     fsrar = StringField('fsrar', validators=[DataRequired()])
     title = StringField('title', validators=[DataRequired()])
-    path = StringField('path', validators=[DataRequired()])
     host = StringField('host', validators=[DataRequired()])
-    ukm = StringField('path', validators=[DataRequired()])
+    ukm = StringField('ukm', validators=[DataRequired()])
+    path = StringField('path')
 
 
 def create_utm_from_request_form(form) -> Utm:
+    """ Создание Utm инстанса из формы запроса"""
     import inspect
     signature = inspect.signature(Utm.__init__)
     args = signature.parameters.keys()

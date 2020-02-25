@@ -124,6 +124,12 @@ class Utm:
     def log_dir(self):
         return f'//{self.host}.{LOCAL_DOMAIN}/{UTM_LOG_PATH}'
 
+    def to_csv(self):
+        return ';'.join(vars(self).values()) + '\n'
+
+    def to_dict(self):
+        return vars(self)
+
 
 class Result:
     """ Результаты опроса УТМ

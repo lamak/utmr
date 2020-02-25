@@ -1278,3 +1278,21 @@ def upload_file():
 @app.route('/results/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['RESULT_FOLDER'], filename)
+
+
+@app.route('/add_utm', methods=['GET', 'POST'])
+def add_utm():
+    form = CreateUpdateUtm()
+
+    params = {
+        'template_name_or_list': 'add_utm.html',
+        'title': 'Добавление УТМ',
+        'form': form
+    }
+
+    if request.method == 'POST' and form.validate_on_submit():
+        new_utm = create_utm_from_request_form(requestrepeal.form)
+
+        create_update_utm_db(mongodb, new_utm) if UTMR_USE_DB else create_update_config_utm(UTM_CONFIG, new_utm)
+
+    return render_template(**params)

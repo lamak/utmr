@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+    <p class="lead">Добавление или обновление УТМ</p>
+
+    <form action="" method="post" name="send" role="form">
+
+        <label for="fsrar">ФСРАР ИД</label>
+        <p>{{ form.fsrar(class="form-control") }}</p>
+{#        <span class="help-block">Фильтр по алкокоду, необязателен</span>#}
+
+        <label for="title">Название, адрес</label>
+        <p>{{ form.title(class="form-control") }}</p>
+{#        <span class="help-block">Для точек работающих не в STORGCO, может быть долго, т.к. идет тяжелых запросов остатков с ТТ. Максимальное количество 50, по умолчанию 10</span>#}
+
+        <label for="host">Сервер УТМ</label>
+        <p>{{ form.host(class="form-control") }}</p>
+
+        <label for="ukm">Сервер УКМ </label>
+        <p>{{ form.ukm(class="form-control") }}</p>
+
+        <label for="fsrar">UNC путь к входящим XML</label>
+        <p>{{ form.path(class="form-control") }}</p>
+
+        <br>
+
+        <p><input type="submit" value="Сохранить" class="btn btn-primary"></p>
+    </form>
+
+{% endblock %}

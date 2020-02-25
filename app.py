@@ -316,9 +316,8 @@ class CreateUpdateUtm(FlaskForm):
 def create_utm_from_request_form(form) -> Utm:
     import inspect
     signature = inspect.signature(Utm.__init__)
-    form_params = signature.parameters.keys()
-    form_params.pop('self')
-    return Utm(**{parameter: form.get(parameter) for parameter in form})
+    args = signature.parameters.keys()
+    return Utm(**{parameter: form.get(parameter) for parameter in form if parameter in args})
 
 
 def validate_filename(filename):

@@ -305,6 +305,14 @@ class ChequeForm(FsrarForm):
     ])
 
 
+class CreateUpdateUtm(FlaskForm):
+    fsrar = StringField('fsrar', validators=[DataRequired(), Length(min=12, max=12)])
+    title = StringField('title', validators=[DataRequired()])
+    path = StringField('path', validators=[DataRequired()])
+    host = StringField('host', validators=[DataRequired()])
+    ukm = StringField('path', validators=[DataRequired()])
+
+
 def validate_filename(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 

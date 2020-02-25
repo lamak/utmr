@@ -244,6 +244,7 @@ def create_update_config_utm(config, utm: Utm):
         for l in lines:
             if l.split(';')[0] != utm.fsrar:
                 f.write(l + '\n')
+        f.write(utm.to_csv())
 
 
 class FsrarForm(FlaskForm):

@@ -19,7 +19,7 @@ from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTi
 from pymongo import MongoClient
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
-from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
+from wtforms import StringField, IntegerField, SelectField, FileField
 from wtforms.validators import DataRequired, Length, Regexp
 
 LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
@@ -271,14 +271,6 @@ class Configs:
 
 class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', coerce=int)
-
-
-class AllFsrarForm(FsrarForm):
-    all = BooleanField()
-
-
-class TransactionsErrorForm(AllFsrarForm):
-    yesterday = BooleanField()
 
 
 class UploadForm(FlaskForm):
@@ -1047,7 +1039,7 @@ def check_mark():
 
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
-    form = AllFsrarForm()
+    form = FsrarForm()
     form.fsrar.choices = cfg.utm_choices()
     form.fsrar.data = request.args.get('fsrar')
     params = {
@@ -1055,22 +1047,16 @@ def get_utm_errors():
         'title': 'УТМ поиск ошибок чеков',
         'form': form,
     }
-
     if request.method == 'POST':
         from grab_logs import parse_log_for_errors, parse_errors
         results = dict()
-        get_ukm_cheques = True
 
         log_name = 'transport_transaction.log'
         params['date'] = datetime.now().strftime(HUMAN_DATE_FORMAT)
+        form.fsrar.data = request.form['fsrar']
 
-        if request.form.get('all'):
-            utm = cfg.utms
-            get_ukm_cheques = False
-        else:
-            current = get_instance(request.form['fsrar'])
-            form.fsrar.data = current.fsrar
-            utm = [current, ]
+        all_utm = request.form.get('all', False)
+        utm = cfg.utms if all_utm else [get_instance(request.form['fsrar']), ]
 
         for u in utm:
             transport_log = u.log_dir() + log_name
@@ -1078,7 +1064,7 @@ def get_utm_errors():
 
             errors_found, checks, err = parse_log_for_errors(transport_log)
             errors_objects = parse_errors(errors_found, u.fsrar)
-            error_results, marks = process_errors(errors_objects, get_ukm_cheques, u.ukm_host())
+            error_results, marks = process_errors(errors_objects, not all_utm, u.ukm_host())
             summary = err if err is not None else f'Всего чеков: {checks}, ошибок {len(errors_objects)}, уникальных {marks}'
             results[utm_header + summary] = error_results
 

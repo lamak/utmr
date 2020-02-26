@@ -6,13 +6,15 @@
     <form action="" method="post" name="send" role="form">
         <label for="fsrar">Выберите УТМ торговый точки</label>
         <p>{{ form.fsrar(class="form-control") }}</p>
-        <p>{{ form.all() }} Все УТМ</p>
-        <p><input type="submit" value="Получить" class="btn btn-primary"></p>
+        <p>
+            <input type="submit" name="select" value="Выбранная" class="btn btn-primary">
+            <input type="submit" name="all" value="Все УТМ" class="btn btn-primary">
+        </p>
     </form>
     {% if results %}
         <h1>Результаты {{ date }}: </h1>
         <p>Всего ТТ: {{ total }}, ТТ c ошибками: {{ error_count }} Ошибок всего: {{ total_errors }}
-        {% if results is not none %}
+            {% if results is not none %}
                 {% for key, value in results.items() %}
                     <div>
                         <b>{{ key|safe }}</b><br>

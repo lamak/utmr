@@ -193,38 +193,90 @@ class MarkErrors:
         self.mark = mark
 
 
-def get_utm_list():
-    """ Выбор источника УТМ, при отсутствии в БД будет попытка заполнить из файла """
-    if app.config['USE_DB']:
-        utms = get_utm_from_db()
-        if not utms:
-            import_utms_to_db()
-        return get_utm_from_db()
-    else:
-        return get_utm_from_file()
-
-
-def get_utm_from_db():
-    """ Получение списка УТМ из MongoDB """
-    return [Utm(**remove_id(u)) for u in mongodb.utm.find().sort('title', 1)]
-
-
-def get_utm_from_file(filename: str = UTM_CONFIG):
-    """ Получение списка УТМ из файла настроек """
-    utms = []
-    try:
-        with open(filename, 'r', encoding='utf-8') as config_file:
-            utms = [Utm(*u.split(';')) for u in config_file.read().splitlines()]
-            utms.sort(key=lambda utm: utm.title)
-    except FileNotFoundError as e:
-        logging.error(e)
-    return utms
-
-
 class Configs(metaclass=SingletonConfigMeta):
     def __init__(self):
         self.use_db = int(os.environ.get('UTMR_USE_DB', False))
-        self.utms = get_utm_list()
+        self.config = os.environ.get('UTM_CONFIG', 'config')
+        self.db = mongodb
+        self.utms = self.get_utm_list()
+
+    def utm_choices(self):
+        return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in self.utms]
+
+    def create_update_current(self, utm):
+        element = next((u for u in self.utms if u.fsrar == utm.fsrar), None)
+        if element:
+            self.utms.remove(element)
+
+        self.utms.append(utm)
+
+    def create_update_db(self, utm):
+        self.create_update_utm_db(utm) if self.use_db else self.create_update_config_utm(utm)
+
+    def create_or_update_utm(self, utm: Utm):
+        self.create_update_current(utm)
+        self.create_update_db(utm)
+
+    def get_utm_list(self):
+        """ Выбор источника УТМ, при отсутствии в БД будет попытка заполнить из файла """
+        if self.use_db:
+            utms = self.get_utm_from_db()
+            if not utms:
+                self.import_utms_to_db()
+            return self.get_utm_from_db()
+        else:
+            return self.get_utm_from_file()
+
+    def get_utm_from_db(self):
+        """ Получение списка УТМ из MongoDB """
+        return [Utm(**remove_id(u)) for u in self.db.utm.find().sort('title', 1)]
+
+    def get_utm_from_file(self):
+        """ Получение списка УТМ из файла настроек """
+        utms = []
+        try:
+            with open(self.config, 'r', encoding='utf-8') as config_file:
+                utms = [Utm(*u.split(';')) for u in config_file.read().splitlines()]
+                utms.sort(key=lambda utm: utm.title)
+        except FileNotFoundError as e:
+            logging.error(e)
+        return utms
+
+    def create_update_utm_db(self, utm: Utm):
+        """ Создание или обновление УТМ в MongoDB"""
+        query = {'fsrar': utm.fsrar}
+        if not self.db.utm.find_one(query):
+            self.db.utm.insert_one(vars(utm))
+            logging.info(f'Добавлен УТМ {utm}')
+        else:
+            self.db.utm.update_one(query, {
+                '$set': vars(utm)
+            }, upsert=False)
+            logging.info(f'Обновлен УТМ {utm}')
+
+    def import_utms_to_db(self):
+        """ Импорт УТМ из файла настроек в MongoDB """
+        utms = self.get_utm_from_file()
+        utms.sort(key=lambda utm: utm.fsrar)
+        [self.create_update_utm_db(u) for u in utms]
+
+    def create_update_config_utm(self, utm: Utm):
+        """ Создание или обновление конфиг файла """
+        if os.path.isfile(self.config):
+            with open(self.config, 'r') as f:
+                lines = f.read().splitlines()
+
+            with open(self.config, 'w') as f:
+                for l in lines:
+                    if l.split(';')[0] != utm.fsrar:
+                        f.write(l + '\n')
+                f.write(utm.to_csv())
+        else:
+            with open(self.config, 'w') as f:
+                f.write(utm.to_csv())
+
+    def get_utms(self):
+        return self.utms
 
 
 cfg = Configs()
@@ -237,42 +289,6 @@ def remove_id(d):
     r = dict(d)
     del r['_id']
     return r
-
-
-def create_update_utm_db(conn, utm: Utm):
-    """ Создание или обновление УТМ в MongoDB"""
-    query = {'fsrar': utm.fsrar}
-    if not conn.utm.find_one(query):
-        conn.utm.insert_one(vars(utm))
-        logging.info(f'Добавлен УТМ {utm}')
-    else:
-        conn.utm.update_one(query, {
-            '$set': vars(utm)
-        }, upsert=False)
-        logging.info(f'Обновлен УТМ {utm}')
-
-
-def import_utms_to_db():
-    """ Импорт УТМ из файла настроек в MongoDB """
-    utms = get_utm_from_file()
-    utms.sort(key=lambda utm: utm.fsrar)
-    [create_update_utm_db(mongodb, u) for u in utms]
-
-
-def create_update_config_utm(config, utm: Utm):
-    """ Создание или обновление конфиг файла """
-    if os.path.isfile(config):
-        with open(config, 'r') as f:
-            lines = f.read().splitlines()
-
-        with open(config, 'w') as f:
-            for l in lines:
-                if l.split(';')[0] != utm.fsrar:
-                    f.write(l + '\n')
-            f.write(utm.to_csv())
-    else:
-        with open(config, 'w') as f:
-            f.write(utm.to_csv())
 
 
 class FsrarForm(FlaskForm):
@@ -1057,8 +1073,8 @@ def check_mark():
 @app.route('/utm_logs', methods=['GET', 'POST'])
 def get_utm_errors():
     form = AllFsrarForm()
+    form.fsrar.choices = cfg.utm_choices()
     form.fsrar.data = request.args.get('fsrar')
-
     params = {
         'template_name_or_list': 'utm_log.html',
         'title': 'УТМ поиск ошибок чеков',
@@ -1102,6 +1118,7 @@ def get_utm_errors():
 @app.route('/rests', methods=['GET', 'POST'])
 def get_rests():
     form = RestsForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'rests.html',
         'title': 'Поиск остатков в обмене',
@@ -1145,6 +1162,7 @@ def get_rests():
 @app.route('/ticket', methods=['GET', 'POST'])
 def get_tickets():
     form = TicketForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'ticket.html',
         'title': 'Поиск квитанций обмена',
@@ -1311,7 +1329,6 @@ def uploaded_file(filename):
 @app.route('/add_utm', methods=['GET', 'POST'])
 def add_utm():
     form = CreateUpdateUtm()
-
     params = {
         'template_name_or_list': 'add_utm.html',
         'title': 'Добавление УТМ',

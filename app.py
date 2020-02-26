@@ -276,7 +276,7 @@ def create_update_config_utm(config, utm: Utm):
 
 
 class FsrarForm(FlaskForm):
-    fsrar = SelectField('fsrar', choices=[(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in get_utm_list()])
+    fsrar = SelectField('fsrar', choices=[(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in cfg.utms])
 
 
 class AllFsrarForm(FsrarForm):
@@ -359,7 +359,7 @@ def get_xml_template(filename: str) -> str:
 
 def get_instance(fsrar: str) -> Optional[Utm]:
     """ Получаем УТМ из формы по ФСРАР ИД"""
-    return next((x for x in get_utm_list() if x.fsrar == fsrar), None)
+    return next((x for x in cfg.utms if x.fsrar == fsrar), None)
 
 
 def get_limit(field: str, max_limit: int, default_limit: int) -> int:
@@ -932,7 +932,7 @@ def service_clean():
             form.fsrar.data = utm.fsrar
 
         elif 'all' in request.form:
-            for utm in get_utm_list():
+            for utm in cfg.utms:
                 results.append(clean(utm))
 
         params['results'] = results
@@ -949,7 +949,7 @@ def status():
     err = False
 
     if request.method == 'POST':
-        results = [parse_utm(utm) for utm in get_utm_list()]
+        results = [parse_utm(utm) for utm in cfg.utms]
         text_results = [x.to_dict() for x in results]
 
         # сохраним результаты монге, для будущих поколений
@@ -1074,7 +1074,7 @@ def get_utm_errors():
         params['date'] = datetime.now().strftime(HUMAN_DATE_FORMAT)
 
         if request.form.get('all'):
-            utm = get_utm_list()
+            utm = cfg.utms
             get_ukm_cheques = False
         else:
             current = get_instance(request.form['fsrar'])

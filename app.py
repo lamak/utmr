@@ -90,10 +90,6 @@ class SingletonConfigMeta(type):
         return cls._instance
 
 
-class Configs(metaclass=SingletonConfigMeta):
-    pass
-
-
 class Utm:
     """ УТМ
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
@@ -223,6 +219,17 @@ def get_utm_from_file(filename: str = UTM_CONFIG):
     except FileNotFoundError as e:
         logging.error(e)
     return utms
+
+
+class Configs(metaclass=SingletonConfigMeta):
+    def __init__(self):
+        self.use_db = int(os.environ.get('UTMR_USE_DB', False))
+        self.utms = get_utm_list()
+
+
+cfg = Configs()
+
+print(id(cfg))
 
 
 def remove_id(d):

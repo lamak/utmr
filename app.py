@@ -325,6 +325,24 @@ class CreateUpdateUtm(FlaskForm):
     path = StringField('path')
 
 
+results_ordering_choices = (
+    ('fsrar', 'ФСРАР'),
+    ('title', 'Адрес'),
+    ('legal', 'Организация'),
+    ('surname', 'Директор'),
+    ('gost', 'ГОСТ'),
+    ('pki', 'PKI'),
+    ('host', 'Сервер'),
+    ('filter', 'Фильтр'),
+    ('license', 'Лицензия'),
+    ('version', 'Версия'),
+)
+
+
+class StatusSelectOrder(FlaskForm):
+    ordering = SelectField('ordering', choices=results_ordering_choices)
+
+
 def get_db_last_results(db):
     [Result(**remove_id(x)) for x in db.results.find({'last': True})]
 
@@ -1319,7 +1337,8 @@ def status2():
     params = {
         'template_name_or_list': 'status2.html',
         'title': 'Статус',
-        'results': mongodb.results.find({'last': True})
+        'form': StatusSelectOrder(),
+        'results': mongodb.results.find({'last': True}).sort(request.form.get('ordering', 'title'), 1)
     }
 
     return render_template(**params)

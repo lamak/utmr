@@ -76,16 +76,6 @@ for f in WORKING_DIRS:
     create_folder(f)
 
 
-class SingletonConfigMeta(type):
-    """ Метакласс для настроек """
-    _instance = None
-
-    def __call__(cls):
-        if cls._instance is None:
-            cls._instance = super().__call__()
-        return cls._instance
-
-
 class Utm:
     """ УТМ
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
@@ -182,18 +172,18 @@ class Result:
 
 
 class MarkErrors:
-    def __init__(self, date, fsrar, error, mark=None):
+    def __init__(self, event_date, fsrar, error, mark=None):
         self.fsrar = fsrar
-        self.date = date
+        self.date = event_date
         self.error = error
         self.mark = mark
 
 
-class Configs(metaclass=SingletonConfigMeta):
-    def __init__(self):
+class Configs:
+    def __init__(self, db):
         self.use_db = int(os.environ.get('UTMR_USE_DB', False))
         self.config = os.environ.get('UTM_CONFIG', 'config')
-        self.db = mongodb
+        self.db = db
         self.utms = self.get_utm_list()
 
     def utm_choices(self):
@@ -225,6 +215,13 @@ class Configs(metaclass=SingletonConfigMeta):
 
     def get_utm_from_db(self):
         """ Получение списка УТМ из MongoDB """
+
+        def remove_id(d):
+            """ Удаление идентификатора MongoDB """
+            r = dict(d)
+            del r['_id']
+            return r
+
         return [Utm(**remove_id(u)) for u in self.db.utm.find().sort('title', 1)]
 
     def get_utm_from_file(self):
@@ -270,21 +267,6 @@ class Configs(metaclass=SingletonConfigMeta):
         else:
             with open(self.config, 'w') as f:
                 f.write(utm.to_csv())
-
-    def get_utms(self):
-        return self.utms
-
-
-cfg = Configs()
-
-print(id(cfg))
-
-
-def remove_id(d):
-    """ Удаление идентификатора MongoDB """
-    r = dict(d)
-    del r['_id']
-    return r
 
 
 class FsrarForm(FlaskForm):
@@ -1345,3 +1327,6 @@ def add_utm():
         cfg.create_or_update_utm(new_utm)
 
     return render_template(**params)
+
+
+cfg = Configs(mongodb)

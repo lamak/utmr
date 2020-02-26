@@ -64,10 +64,6 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['RESULT_FOLDER'] = RESULT_FOLDER
-app.config['USE_DB'] = UTMR_USE_DB
-
 app.secret_key = 'dev'
 
 
@@ -498,7 +494,7 @@ def create_unique_xml(fsrar: str, content: str, path: str) -> str:
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0][0][1].text = content
-    path = os.path.join(app.config['RESULT_FOLDER'], f'TTNQuery_{uuid.uuid4()}.xml')
+    path = os.path.join(RESULT_FOLDER, f'TTNQuery_{uuid.uuid4()}.xml')
     tree.write(path)
     return path
 
@@ -508,7 +504,7 @@ def create_unique_mark_xml(fsrar: str, mark: str, path: str) -> str:
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0].text = mark
-    path = os.path.join(app.config['RESULT_FOLDER'], f'QueryFilter_{uuid.uuid4()}.xml')
+    path = os.path.join(RESULT_FOLDER, f'QueryFilter_{uuid.uuid4()}.xml')
     tree.write(path)
     return path
 
@@ -729,7 +725,7 @@ def reject():
         root[1][0][0][0].text = 'Rejected'
         root[1][0][0][2].text = str(date.today())
         root[1][0][0][3].text = wbregid
-        filepath = os.path.join(app.config['RESULT_FOLDER'], f'TTNReject_{uuid.uuid4()}.xml')
+        filepath = os.path.join(RESULT_FOLDER, f'TTNReject_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
@@ -765,7 +761,7 @@ def wbrepeal():
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
-        filepath = os.path.join(app.config['RESULT_FOLDER'], f'WBRepeal_{uuid.uuid4()}.xml')
+        filepath = os.path.join(RESULT_FOLDER, f'WBRepeal_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
 
@@ -817,7 +813,7 @@ def requestrepeal():
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
-        filepath = os.path.join(app.config['RESULT_FOLDER'], f'{repeal_type}Repeal_{uuid.uuid4()}.xml')
+        filepath = os.path.join(RESULT_FOLDER, f'{repeal_type}Repeal_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (repeal_data['file'], open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
@@ -858,7 +854,7 @@ def wbrepealconfirm():
         root[1][0][0][2].text = request_date
         root[1][0][0][3].text = wbregid
         root[1][0][0][4].text = is_confirm
-        filepath = os.path.join(app.config['RESULT_FOLDER'], f'WBrepealConfirm_{uuid.uuid4()}.xml')
+        filepath = os.path.join(RESULT_FOLDER, f'WBrepealConfirm_{uuid.uuid4()}.xml')
 
         tree.write(filepath)
 
@@ -1226,7 +1222,7 @@ def upload_file():
 
         if file:
             filename = f'{uuid.uuid4()}_{secure_filename(file.filename)}'
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
             file.save(filepath)
             errors = list()
 
@@ -1299,7 +1295,7 @@ def upload_file():
                     today = datetime.now().strftime(CONVERTER_DATE_FORMAT)
 
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
-                    result_path = os.path.join(os.path.join(app.config['RESULT_FOLDER'], result))
+                    result_path = os.path.join(RESULT_FOLDER, result)
 
                     for wh, articles in fin.items():
                         idx = 0
@@ -1332,7 +1328,7 @@ def upload_file():
 
 @app.route('/results/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(app.config['RESULT_FOLDER'], filename)
+    return send_from_directory(RESULT_FOLDER, filename)
 
 
 @app.route('/add_utm', methods=['GET', 'POST'])

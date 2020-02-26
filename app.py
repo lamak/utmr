@@ -140,28 +140,28 @@ class Result:
 
     """
 
-    def __init__(self, utm: Utm):
-        self.utm: Utm = utm  # fsrar, server, title
-        self.legal: str = ''
-        self.surname: str = ''
-        self.given_name: str = ''
-        self.gost: str = ''
-        self.pki: str = ''
-        self.cheques: str = ''
-        self.status: bool = False
-        self.licence: bool = False
-        self.error: list = []
-        self.fsrar: str = self.utm.fsrar
-        self.host: str = self.utm.host
-        self.url: str = self.utm.url()
-        self.title: str = self.utm.title
-        self.filter: bool = False
-        self.docs_in: int = 0
-        self.docs_out: int = 0
-        self.version = ''
-        self.change_set = ''
-        self.build = ''
-        self.date = datetime.utcnow()
+    def __init__(self, **kwargs):
+        self.utm: Optional[Utm] = kwargs.get('utm')  # fsrar, server, title
+        self.legal: str = kwargs.get('legal', '')
+        self.surname: str = kwargs.get('surname', '')
+        self.given_name: str = kwargs.get('given_name', '')
+        self.gost: str = kwargs.get('gost', '')
+        self.pki: str = kwargs.get('pki', '')
+        self.cheques: str = kwargs.get('cheques', '')
+        self.status: bool = kwargs.get('status', False)
+        self.licence: bool = kwargs.get('licence', False)
+        self.error: list = kwargs.get('errors', [])
+        self.fsrar: str = kwargs.get('fsrar', self.utm.fsrar if self.utm else '')
+        self.host: str = kwargs.get('host', self.utm.host if self.utm else '')
+        self.url: str = kwargs.get('url', self.utm.url() if self.utm else '')
+        self.title: str = kwargs.get('title', self.utm.title if self.utm else '')
+        self.filter: bool = kwargs.get('filter', False)
+        self.docs_in: int = kwargs.get('docs_in', 0)
+        self.docs_out: int = kwargs.get('docs_out', 0)
+        self.version: str = kwargs.get('cheques', '')
+        self.change_set: str = kwargs.get('cheques', '')
+        self.build: str = kwargs.get('cheques', '')
+        self.date = kwargs.get('cheques', datetime.utcnow())
 
     def to_dict(self):
         d = vars(self)
@@ -188,7 +188,6 @@ class Configs:
         self.db = db
         self.all_utms = self.get_utm_list()
         self.utms = [utm for utm in self.all_utms if utm.active]
-
 
     def utm_choices(self):
         return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in self.utms]
@@ -219,12 +218,6 @@ class Configs:
 
     def get_utm_from_db(self):
         """ Получение списка УТМ из MongoDB """
-
-        def remove_id(d):
-            """ Удаление идентификатора MongoDB """
-            r = dict(d)
-            del r['_id']
-            return r
 
         return [Utm(**remove_id(u)) for u in self.db.utm.find().sort('title', 1)]
 
@@ -332,6 +325,17 @@ class CreateUpdateUtm(FlaskForm):
     path = StringField('path')
 
 
+def get_db_last_results(db):
+    [Result(**remove_id(x)) for x in db.results.find({'last': True})]
+
+
+def remove_id(d):
+    """ Удаление идентификатора MongoDB """
+    r = dict(d)
+    del r['_id']
+    return r
+
+
 def create_utm_from_request_form(form) -> Utm:
     """ Создание Utm инстанса из формы запроса"""
     import inspect
@@ -372,7 +376,7 @@ def humanize_date(iso_date: str) -> str:
 
 
 def parse_utm(utm: Utm):
-    result = Result(utm)
+    result = Result(utm=utm)
     div_inc = 0
     homepage, gostpage = Grab(), Grab()
 
@@ -1306,6 +1310,17 @@ def add_utm():
     if request.method == 'POST':
         new_utm = create_utm_from_request_form(request.form)
         cfg.create_or_update_utm(new_utm)
+
+    return render_template(**params)
+
+
+@app.route('/status2', methods=['GET', 'POST'])
+def status2():
+    params = {
+        'template_name_or_list': 'status2.html',
+        'title': 'Статус',
+        'results': mongodb.results.find({'last': True})
+    }
 
     return render_template(**params)
 

@@ -542,7 +542,7 @@ def find_last_nattn(url: str) -> str:
         flash('Ошибка подключения к УТМ')
 
 
-def parse_nattn(url: str):
+def parse_reply_nattn(url: str):
     ttn_list, date_list, doc_list, nattn_list = [], [], [], []
     if url is not None:
         try:
@@ -850,61 +850,49 @@ def wbrepealconfirm():
     return render_template(**params)
 
 
-@app.route('/get_nattn', methods=['GET', 'POST'])
-def get_nattn():
-    form = FsrarForm()
-    form.fsrar.choices = cfg.utm_choices()
-    params = {
-        'template_name_or_list': 'get_nattn.html',
-        'title': 'Запросить необработанные TTN',
-        'form': form,
-    }
-
-    if request.method == 'POST':
-        file = 'nattn.xml'
-        xml = get_xml_template(file)
-
-        utm = get_instance(request.form['fsrar'])
-        form.fsrar.data = utm.fsrar
-
-        url = utm.url() + '/opt/in/QueryNATTN'
-
-        query = create_unique_xml(utm.fsrar, utm.fsrar, xml)
-        files = {'xml_file': (file, open(query, 'rb'), 'application/xml')}
-        err = send_xml(url, files)
-
-        log = f'QueryNATTN: Отправлен запрос {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
-
-        logging.info(log)
-        flash(Markup(log))
-
-    return render_template(**params)
-
-
 @app.route('/check_nattn', methods=['GET', 'POST'])
 def check_nattn():
     form = FsrarForm()
     form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'check_nattn.html',
-        'title': 'Проверить необработанные TTN',
+        'title': 'Необработанные TTN',
         'form': form,
     }
 
     if request.method == 'POST':
         utm = get_instance(request.form['fsrar'])
         form.fsrar.data = utm.fsrar
+        if 'check' in request.form:
+            ttn_list = parse_reply_nattn(find_last_nattn(utm.url()))
+            print(ttn_list)
+            if ttn_list is None:
+                flash('Нет запроса необработанных документов')
+            elif not ttn_list:
+                flash('Все документы обработаны')
+            else:
+                flash('Необработанные документы в списке результатов')
 
-        ttnlist = parse_nattn(find_last_nattn(utm.url()))
-        if ttnlist is None:
-            flash('Нет запроса необработанных документов')
-        elif not ttnlist:
-            flash('Все документы обработаны')
-        else:
-            flash('Необработанные документы в списке результатов')
+            params['title'] = utm.title
+            params['ttn_list'] = ttn_list
 
-        params['tt'] = utm.title
-        params['doc_list'] = ttnlist
+        if 'request' in request.form:
+            file = 'nattn.xml'
+            xml = get_xml_template(file)
+
+            utm = get_instance(request.form['fsrar'])
+            form.fsrar.data = utm.fsrar
+
+            url = utm.url() + '/opt/in/QueryNATTN'
+
+            query = create_unique_xml(utm.fsrar, utm.fsrar, xml)
+            files = {'xml_file': (file, open(query, 'rb'), 'application/xml')}
+            err = send_xml(url, files)
+
+            log = f'QueryNATTN: Отправлен запрос {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
+
+            logging.info(log)
+            flash(Markup(log))
 
     return render_template(**params)
 

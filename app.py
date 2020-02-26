@@ -19,7 +19,7 @@ from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTi
 from pymongo import MongoClient
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
-from wtforms import StringField, IntegerField, SelectField, FileField
+from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
 from wtforms.validators import DataRequired, Length, Regexp
 
 LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
@@ -81,12 +81,13 @@ class Utm:
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
     """
 
-    def __init__(self, fsrar, host, title, path, ukm):
+    def __init__(self, fsrar, host, title, path, ukm, active: bool = True):
         self.fsrar = fsrar
         self.host = host
         self.title = title
         self.path = path or f'{DEFAULT_XML_PATH}{host.split("-")[0]}/in/'
         self.ukm = ukm
+        self.active: bool = active
 
     def __str__(self):
         return f'{self.fsrar} {self.title}'
@@ -184,24 +185,25 @@ class Configs:
         self.use_db = int(os.environ.get('UTMR_USE_DB', False))
         self.config = os.environ.get('UTM_CONFIG', 'config')
         self.db = db
-        self.utms = self.get_utm_list()
+        self.all_utms = self.get_utm_list()
+        self.utms = [utm for utm in self.all_utms if utm.active]
 
     def utm_choices(self):
         return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in self.utms]
 
     def create_update_current(self, utm):
-        element = next((u for u in self.utms if u.fsrar == utm.fsrar), None)
+        element = next((u for u in self.all_utms if u.fsrar == utm.fsrar), None)
         if element:
             self.utms.remove(element)
 
         self.utms.append(utm)
 
-    def create_update_db(self, utm):
+    def create_update_storage(self, utm):
         self.create_update_utm_db(utm) if self.use_db else self.create_update_config_utm(utm)
 
     def create_or_update_utm(self, utm: Utm):
         self.create_update_current(utm)
-        self.create_update_db(utm)
+        self.create_update_storage(utm)
 
     def get_utm_list(self):
         """ Выбор источника УТМ, при отсутствии в БД будет попытка заполнить из файла """
@@ -324,6 +326,7 @@ class CreateUpdateUtm(FlaskForm):
     title = StringField('title', validators=[DataRequired()])
     host = StringField('host', validators=[DataRequired()])
     ukm = StringField('ukm', validators=[DataRequired()])
+    active = BooleanField('active')
     path = StringField('path')
 
 

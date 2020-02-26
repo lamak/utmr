@@ -49,8 +49,6 @@ mysql_config = {
     'charset': 'utf8',
     'use_unicode': True,
 }
-# Storage Type for utms
-UTMR_USE_DB = int(os.environ.get('UTMR_USE_DB', False))
 
 # Mongo Setup
 mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
@@ -87,7 +85,7 @@ class Utm:
         self.title = title
         self.path = path or f'{DEFAULT_XML_PATH}{host.split("-")[0]}/in/'
         self.ukm = ukm
-        self.active: bool = active
+        self.active: bool = bool(active)
 
     def __str__(self):
         return f'{self.fsrar} {self.title}'
@@ -171,6 +169,9 @@ class Result:
         del d['utm']
         return d
 
+    def to_db(self, db):
+        db.results.insert_one(self.to_dict())
+
 
 class MarkErrors:
     def __init__(self, event_date, fsrar, error, mark=None):
@@ -182,11 +183,12 @@ class MarkErrors:
 
 class Configs:
     def __init__(self, db):
-        self.use_db = int(os.environ.get('UTMR_USE_DB', False))
+        self.use_db = bool(os.environ.get('UTMR_USE_DB', False))
         self.config = os.environ.get('UTM_CONFIG', 'config')
         self.db = db
         self.all_utms = self.get_utm_list()
         self.utms = [utm for utm in self.all_utms if utm.active]
+
 
     def utm_choices(self):
         return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in self.utms]
@@ -641,6 +643,10 @@ def process_errors(errors: list, full: bool, ukm: str):
     return current_results, len(current_marks)
 
 
+def mongo_prev_results(db):
+    db.results.update_many({}, {'$set': {'last': False}})
+
+
 @app.route('/')
 def index():
     return redirect(url_for('status'))
@@ -935,12 +941,10 @@ def status():
 
     if request.method == 'POST':
         results = [parse_utm(utm) for utm in cfg.utms]
-        text_results = [x.to_dict() for x in results]
 
-        # сохраним результаты монге, для будущих поколений
         try:
-            mongodb.results.update_many({}, {'$set': {'last': False}})
-            mongodb.results.insert_many(text_results)
+            mongo_prev_results(mongodb)
+            [r.to_db(mongodb) for r in results]
         except:
             log = f"Не удалось записать результаты в БД"
             flash(log)

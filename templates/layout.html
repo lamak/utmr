@@ -14,14 +14,14 @@
         <div class="navbar-collapse collapse">
             <ul class="nav navbar-nav">
                 <li><a href="{{ url_for('status') }}" title="Быстрый опрос всех УТМ">Статус УТМ</a></li>
-                <li><a href="{{ url_for('get_utm_errors') }}" title="Поиск ошибок в логе УТМ">Ошибки марок УТМ</a></li>
-                <li><a href="{{ url_for('check_mark') }}" title="Запрос состояния марки">Проверка марки в УТМ</a></li>
+                <li><a href="{{ url_for('get_utm_errors') }}" title="Ошибки продажи марок УТМ">Журнал ошибок</a></li>
+                <li><a href="{{ url_for('check_mark') }}" title="Проверка в УТМ">Проверка марки</a></li>
 
                 <li class="dropdown">
                     <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true"
                        aria-expanded="false">TTN<span class="caret"></span></a>
                     <ul class="dropdown-menu">
-                        <li><a href="{{ url_for('ttn') }}">Запросить TTN</a></li>
+                        <li><a href="{{ url_for('ttn') }}">Повторно Запросить TTN</a></li>
                         <li><a href="{{ url_for('reject') }}">Отклонить TTN</a></li>
                         <li><a href="{{ url_for('requestrepeal') }}">Запросить распроведение</a></li>
                         <li><a href="{{ url_for('wbrepealconfirm') }}">Подтвердить распроведение TTN</a></li>

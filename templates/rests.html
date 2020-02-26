@@ -6,7 +6,7 @@
     <form action="" method="post" name="send" role="form">
 
         <label for="alc_code">Алкокод</label>
-        <p>{{ form.alccode(class="form-control") }}</p>
+        <p>{{ form.alc_code(class="form-control") }}</p>
         <span class="help-block">Фильтр по алкокоду, необязателен</span>
 
         <label for="limit">Кол-во последних запросов</label>
@@ -22,10 +22,10 @@
     {% if results %}
         <h1>Результаты:</h1>
 
-    {% for alccode, rests in results.items() %}
+    {% for alc_code, rests in results.items() %}
             <table class="table table-hover">
             <thead>
-                <h3>Алкокод: {{ alccode }}</h3>
+                <h3>Алкокод: {{ alc_code }}</h3>
             <tr>
                 <th>Дата</th>
                 <th>Количество</th>

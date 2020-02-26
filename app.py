@@ -292,7 +292,7 @@ def remove_id(d):
 
 
 class FsrarForm(FlaskForm):
-    fsrar = SelectField('fsrar', choices=[(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in cfg.utms])
+    fsrar = SelectField('fsrar', coerce=int)
 
 
 class AllFsrarForm(FsrarForm):
@@ -676,6 +676,7 @@ def index():
 @app.route('/ttn', methods=['GET', 'POST'])
 def ttn():
     form = TTNForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'ttn.html',
         'title': 'Повторный запрос TTN',
@@ -705,6 +706,7 @@ def ttn():
 @app.route('/reject', methods=['GET', 'POST'])
 def reject():
     form = TTNForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'reject.html',
         'title': 'Отозвать или отклонить TTN',
@@ -741,6 +743,7 @@ def reject():
 @app.route('/wbrepeal', methods=['GET', 'POST'])
 def wbrepeal():
     form = TTNForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'wbrepeal.html',
         'title': 'Распроведение TTN',
@@ -777,6 +780,7 @@ def wbrepeal():
 @app.route('/requestrepeal', methods=['GET', 'POST'])
 def requestrepeal():
     form = RequestRepealForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'requestrepeal.html',
         'title': 'Запрос распроведения',
@@ -827,6 +831,7 @@ def requestrepeal():
 @app.route('/wbrepealconfirm', methods=['GET', 'POST'])
 def wbrepealconfirm():
     form = WBRepealConfirmForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'wbrepealconfirm.html',
         'title': 'Подтверждение распроведения TTN',
@@ -870,6 +875,7 @@ def wbrepealconfirm():
 @app.route('/get_nattn', methods=['GET', 'POST'])
 def get_nattn():
     form = FsrarForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'get_nattn.html',
         'title': 'Запросить необработанные TTN',
@@ -900,6 +906,7 @@ def get_nattn():
 @app.route('/check_nattn', methods=['GET', 'POST'])
 def check_nattn():
     form = FsrarForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'check_nattn.html',
         'title': 'Проверить необработанные TTN',
@@ -934,6 +941,7 @@ def service_clean():
             return utm.title, 'недоступен'
 
     form = FsrarForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'service.html',
         'title': 'Удаление Форм 2 из УТМ',
@@ -993,6 +1001,7 @@ def status():
 @app.route('/cheque', methods=['GET', 'POST'])
 def cheque():
     form = ChequeForm()
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'cheque.html',
         'title': 'Отправка чека',
@@ -1038,7 +1047,7 @@ def cheque():
 @app.route('/mark', methods=['GET', 'POST'])
 def check_mark():
     form = MarkForm()
-
+    form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'mark.html',
         'title': 'Проверка марок УТМ',
@@ -1337,6 +1346,6 @@ def add_utm():
 
     if request.method == 'POST':
         new_utm = create_utm_from_request_form(request.form)
-        create_update_utm_db(mongodb, new_utm) if UTMR_USE_DB else create_update_config_utm(UTM_CONFIG, new_utm)
+        cfg.create_or_update_utm(new_utm)
 
     return render_template(**params)

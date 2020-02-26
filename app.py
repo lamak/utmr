@@ -80,6 +80,20 @@ for f in WORKING_DIRS:
     create_folder(f)
 
 
+class SingletonConfigMeta(type):
+    """ Метакласс для настроек """
+    _instance = None
+
+    def __call__(cls):
+        if cls._instance is None:
+            cls._instance = super().__call__()
+        return cls._instance
+
+
+class Configs(metaclass=SingletonConfigMeta):
+    pass
+
+
 class Utm:
     """ УТМ
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
@@ -252,6 +266,7 @@ def create_update_config_utm(config, utm: Utm):
     else:
         with open(config, 'w') as f:
             f.write(utm.to_csv())
+
 
 class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', choices=[(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in get_utm_list()])

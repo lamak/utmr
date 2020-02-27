@@ -681,6 +681,7 @@ def ttn():
     params = {
         'template_name_or_list': 'ttn.html',
         'title': 'Повторный запрос TTN',
+        'description': 'Повторная отправка ТТН в супермаг, без изменений в ЕГАИС',
         'form': form,
     }
 
@@ -711,6 +712,7 @@ def reject():
     params = {
         'template_name_or_list': 'reject.html',
         'title': 'Отозвать или отклонить TTN',
+        'description': 'Приход будет отклонен, возврат будет отозван',
         'form': form,
     }
 
@@ -784,6 +786,7 @@ def requestrepeal():
     form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'requestrepeal.html',
+        'description': 'Запрос распроведения накладной и отмена актов постановки списания со склада',
         'title': 'Запрос распроведения',
         'form': form,
     }
@@ -836,6 +839,7 @@ def wbrepealconfirm():
     params = {
         'template_name_or_list': 'wbrepealconfirm.html',
         'title': 'Подтверждение распроведения TTN',
+        'description': 'Подтверждаем запрос на распроведение накладной (возврат поставщику)',
         'form': form,
     }
 
@@ -880,6 +884,7 @@ def check_nattn():
     params = {
         'template_name_or_list': 'check_nattn.html',
         'title': 'Необработанные TTN',
+        'description': 'Запрос в ЕГАИС списка необработанных документ, проверить через 5 минут',
         'form': form,
     }
 
@@ -934,6 +939,7 @@ def service_clean():
     params = {
         'template_name_or_list': 'service.html',
         'title': 'Удаление Форм 2 из УТМ',
+        'description': 'Удаление Форм 2, ReplyNATTN со всех УТМ',
         'form': form
     }
 
@@ -959,6 +965,7 @@ def cheque():
     form.fsrar.choices = cfg.utm_choices()
     params = {
         'template_name_or_list': 'cheque.html',
+        'description': 'Ручная отправка чеков на возврат',
         'title': 'Отправка чека',
         'form': form,
     }
@@ -1006,6 +1013,7 @@ def check_mark():
     params = {
         'template_name_or_list': 'mark.html',
         'title': 'Проверка марок УТМ',
+        'description': 'Запрос наличия марки в УТМ (для помарочного учета)',
         'form': form,
     }
     if request.method == 'POST' and form.validate_on_submit():
@@ -1042,6 +1050,7 @@ def get_utm_errors():
     params = {
         'template_name_or_list': 'utm_log.html',
         'title': 'УТМ поиск ошибок чеков',
+        'description': 'Поиск ошибок в журнале чеков УТМ',
         'form': form,
     }
     if request.method == 'POST':
@@ -1080,6 +1089,7 @@ def get_rests():
     params = {
         'template_name_or_list': 'rests.html',
         'title': 'Поиск остатков в обмене',
+        'description': 'Показывает остатки по алкокодам из последниx запросов',
         'form': form,
     }
 
@@ -1124,6 +1134,7 @@ def get_tickets():
     params = {
         'template_name_or_list': 'ticket.html',
         'title': 'Поиск квитанций обмена',
+        'description': 'Показывает квитанции из обмена по названию документа',
         'form': form,
     }
 

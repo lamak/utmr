@@ -1,8 +1,6 @@
 {% extends "layout.html" %}
 {% block body %}
     {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
-    <p class="lead">Поиск ошибок в журнале чеков УТМ</p>
-    <span class="help-block">Ошибки УТМ при проверке марок</span>
     <form action="" method="post" name="send" role="form">
         <label for="fsrar">Выберите УТМ торговый точки</label>
         <p>{{ form.fsrar(class="form-control") }}</p>

@@ -3,7 +3,6 @@
     {% if error %}
         <p class=error><strong>Error:</strong> {{ error }}{% endif %}
 <form action="" method="post" id="send" name="send" role="form">
-    <p class="lead">Удаление Форм 2, ReplyNATTN со всех УТМ</p>
     <label for="fsrar">Выберите УТМ торговый точки</label>
     <p>{{ form.fsrar(class="form-control") }}</p>
     <p>
@@ -12,23 +11,25 @@
     </p>
 
     </form>
-    <table class="table table-hover">
-        <thead>
-        <tr>
-
-            <th>ТТ</th>
-            <th>Удалено</th>
-
-        </tr>
-        </thead>
-        <tbody>
-        {% for x in results %}
+    {% if results %}
+        <table class="table table-hover">
+            <thead>
             <tr>
-                <td>{{ x[0] }}</td>
-                <td>{{ x[1] }}</td>
+
+                <th>ТТ</th>
+                <th>Удалено</th>
+
             </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+            {% for x in results %}
+                <tr>
+                    <td>{{ x[0] }}</td>
+                    <td>{{ x[1] }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
 
 {% endblock %}

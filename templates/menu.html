@@ -1,0 +1,30 @@
+<div class="navbar navbar-default navbar-static-top" role="navigation">
+    <div class="container">
+        <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li><a href="{{ url_for('status') }}" title="Быстрый опрос всех УТМ">Статус УТМ</a></li>
+                <li><a href="{{ url_for('status2') }}" title="Результат последней проверки">Новый статус</a></li>
+                <li><a href="{{ url_for('get_utm_errors') }}" title="Ошибки продажи марок УТМ">Журнал ошибок</a></li>
+                <li><a href="{{ url_for('check_mark') }}" title="Проверка в УТМ">Проверка марки</a></li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true"
+                       aria-expanded="false">TTN<span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="{{ url_for('ttn') }}">Повторно Запросить TTN</a></li>
+                        <li><a href="{{ url_for('reject') }}">Отклонить TTN</a></li>
+                        <li><a href="{{ url_for('requestrepeal') }}">Запросить распроведение</a></li>
+                        <li><a href="{{ url_for('wbrepealconfirm') }}">Подтвердить распроведение TTN</a></li>
+                        <li><a href="{{ url_for('check_nattn') }}">Необработанные TTN</a></li>
+                    </ul>
+                </li>
+
+                <li><a href="{{ url_for('cheque') }}">Чек</a></li>
+                <li><a href="{{ url_for('get_tickets') }}" title="Проверка квитанций (tickets) обмена">Тикеты</a></li>
+                <li><a href="{{ url_for('get_rests') }}" title="Сводка остатков по последним запросам">Остатки</a></li>
+                <li><a href="{{ url_for('service_clean') }}" title="Удаление TTNFORMREG справок">Очистка</a></li>
+                <li><a href="{{ url_for('add_utm') }}" title="Добавление или изменение">Добавить УТМ</a></li>
+
+        </div><!--/.nav-collapse -->
+    </div>
+</div>

@@ -953,38 +953,6 @@ def service_clean():
     return render_template(**params)
 
 
-@app.route('/status', methods=['GET', 'POST'])
-def status():
-    params = {
-        'template_name_or_list': 'status.html',
-        'title': 'Статус',
-    }
-    err = False
-
-    if request.method == 'POST':
-        results = [parse_utm(utm) for utm in cfg.utms]
-
-        try:
-            mongo_prev_results(mongodb)
-            [r.to_db(mongodb) for r in results]
-        except:
-            log = f"Не удалось записать результаты в БД"
-            flash(log)
-            logging.info(log)
-
-        if 'title' in request.form:
-            results.sort(key=lambda result: result.title)
-        elif 'fsrar' in request.form:
-            results.sort(key=lambda result: result.fsrar)
-        elif 'gost' in request.form:
-            results.sort(key=lambda result: result.gost)
-
-        params['err'] = any([res.error != '' for res in results])
-        params['results'] = results
-
-    return render_template(**params)
-
-
 @app.route('/cheque', methods=['GET', 'POST'])
 def cheque():
     form = ChequeForm()
@@ -1332,14 +1300,43 @@ def add_utm():
     return render_template(**params)
 
 
-@app.route('/status2', methods=['GET', 'POST'])
-def status2():
+@app.route('/status', methods=['GET'])
+def status():
     params = {
-        'template_name_or_list': 'status2.html',
-        'title': 'Статус',
+        'template_name_or_list': 'status.html',
+        'title': 'Статус (новый)',
+        'description': 'Результат последней проверки УТМ, обновление каждую минуту',
+        'refresh': 60,
         'form': StatusSelectOrder(),
-        'results': mongodb.results.find({'last': True}).sort(request.form.get('ordering', 'title'), 1)
+        'results': mongodb.results.find({'last': True}).sort(request.form.get('ordering', 'title'), 1),
     }
+
+    return render_template(**params)
+
+
+@app.route('/status_check', methods=['GET', 'POST'])
+def status_check():
+    params = {
+        'template_name_or_list': 'status.html',
+        'title': 'Проверка УТМ',
+        'description': 'Проверка по требованию, выполняектся около минуты',
+        'form': StatusSelectOrder(),
+    }
+
+    if request.method == 'POST':
+        results = [parse_utm(utm) for utm in cfg.utms]
+
+        try:
+            mongo_prev_results(mongodb)
+            [r.to_db(mongodb) for r in results]
+        except:
+            log = f"Не удалось записать результаты в БД"
+            flash(log)
+            logging.info(log)
+
+        ordering = request.form.get('ordering', 'title')
+        results.sort(key=lambda result: getattr(result, ordering))
+        params['results'] = results
 
     return render_template(**params)
 

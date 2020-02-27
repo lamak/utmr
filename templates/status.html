@@ -3,16 +3,10 @@
     {% if error %}
         <p class=error><strong>Error:</strong> {{ error }}{% endif %}
 <form action="" method="post" name="send" role="form">
-    <span class="help-block">
 
-     {% if not results %} Запрос выполняется около 30 секунд
-     {% else %}Фильтр - при ошибке рекомендуется выполнить обновление настроек УТМ, некоторые марки могут не проходить
-     {% endif %}</span>
-    <p>
-        <input type="submit" name="title" value="Обновить (Название)" class="btn btn-primary">
-        <input type="submit" name="fsrar" value="Обновить (ФСРАР)" class="btn btn-primary">
-        <input type="submit" name="gost" value="Обновить (ГОСТ)" class="btn btn-primary">
-    </p>
+    <label for="ordering">Сортировка</label>
+    <p>{{ form.ordering(class="form-control") }}</p>
+    <input type="submit" value="Выполнить" class="btn btn-primary">
     </form>
     {% if results %}
         <table class="table table-hover">

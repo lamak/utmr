@@ -790,7 +790,7 @@ def requestrepeal():
         'title': 'Запрос распроведения',
         'form': form,
     }
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == 'POST':
         options = {
             'WB': {
                 'file': 'wbrepeal.xml',

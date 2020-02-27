@@ -743,49 +743,12 @@ def reject():
     return render_template(**params)
 
 
-@app.route('/wbrepeal', methods=['GET', 'POST'])
-def wbrepeal():
-    form = TTNForm()
-    form.fsrar.choices = cfg.utm_choices()
-    params = {
-        'template_name_or_list': 'wbrepeal.html',
-        'title': 'Распроведение TTN',
-        'form': form,
-    }
-    if request.method == 'POST' and form.validate_on_submit():
-        file = 'wbrepeal.xml'
-        filepath = get_xml_template(file)
-        wbregid = request.form['wbregid'].strip()
-        request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        utm = get_instance(request.form['fsrar'])
-        form.fsrar.data = utm.fsrar
-
-        url = utm.url() + '/opt/in/RequestRepealWB'
-
-        tree = ET.parse(filepath)
-        root = tree.getroot()
-        root[0][0].text = utm.fsrar
-        root[1][0][0].text = utm.fsrar
-        root[1][0][2].text = request_date
-        root[1][0][3].text = wbregid
-        filepath = os.path.join(RESULT_FOLDER, f'WBRepeal_{uuid.uuid4()}.xml')
-        tree.write(filepath)
-        files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
-
-        err = send_xml(url, files)
-        log = f'RequestRepealWB: {wbregid} отправлен запрос на распроведение {utm.title} [{utm.fsrar}]: {err if err is not None else "OK"}'
-        flash(log)
-        logging.info(log)
-
-    return render_template(**params)
-
-
-@app.route('/requestrepeal', methods=['GET', 'POST'])
-def requestrepeal():
+@app.route('/request_repeal', methods=['GET', 'POST'])
+def request_repeal():
     form = RequestRepealForm()
     form.fsrar.choices = cfg.utm_choices()
     params = {
-        'template_name_or_list': 'requestrepeal.html',
+        'template_name_or_list': 'request_repeal.html',
         'description': 'Запрос распроведения накладной и отмена актов постановки списания со склада',
         'title': 'Запрос распроведения',
         'form': form,
@@ -832,8 +795,8 @@ def requestrepeal():
     return render_template(**params)
 
 
-@app.route('/wbrepealconfirm', methods=['GET', 'POST'])
-def wbrepealconfirm():
+@app.route('/confirm_repeal', methods=['GET', 'POST'])
+def confirm_repeal():
     form = WBRepealConfirmForm()
     form.fsrar.choices = cfg.utm_choices()
     params = {

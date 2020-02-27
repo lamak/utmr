@@ -213,10 +213,9 @@ def process_utm(u: Utm, filenames: Tuple[str]):
 
 def main():
     start = datetime.now()
-    print(f'{start} Start')
     transport_transactions_files = get_transport_transaction_filenames()
     [process_utm(u, transport_transactions_files) for u in get_utm_list()]
-    print(f'{datetime.now()} Done in {datetime.now() - start}')
+    logging.info(f'Done: {datetime.now() - start}')
 
 
 main()

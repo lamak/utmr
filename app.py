@@ -454,8 +454,8 @@ def parse_utm(utm: Utm):
                 result.cheques = 'OK'
             else:
                 result.cheques = last_date(cheque_string)
-        except:
-            result.error.append('Проблема с отправкой чеков\n')
+        except Exception as e:
+            result.error.append(f'Проблема с отправкой чеков: {e}\n')
 
         try:
             pre = gostpage.doc.select('//pre').text()
@@ -475,8 +475,8 @@ def parse_utm(utm: Utm):
             if name_res is not None:
                 result.given_name = name_res.group()
 
-        except:
-            result.error.append('Не найден сертификат организации\n')
+        except Exception as e:
+            result.error.append(f'Не найден сертификат организации{e}\n')
 
     # не удалось соединиться
     except GrabTimeoutError:
@@ -581,8 +581,8 @@ def parse_reply_nattn(url: str):
                 doc_list.append(elem.text)
             for i, ttn in enumerate(ttn_list):
                 nattn_list.append([ttn_list[i], date_list[i], doc_list[i]])
-        except:
-            flash('Ошибка обработки XML', url)
+        except Exception as e:
+            flash(f'Ошибка обработки XML {e}', url)
     return nattn_list
 
 
@@ -909,8 +909,8 @@ def service_clean():
         # todo: внести clean_documents
         try:
             return utm.title, clean_documents(utm.url())
-        except:
-            return utm.title, 'недоступен'
+        except Exception as e:
+            return utm.title, f'недоступен {e}'
 
     form = FsrarForm()
     form.fsrar.choices = cfg.utm_choices()

@@ -1,3 +1,4 @@
+import copy
 import csv
 import logging
 import os
@@ -164,14 +165,14 @@ class Result:
         self.build: str = kwargs.get('cheques', '')
         self.date = kwargs.get('cheques', datetime.utcnow())
 
-    def to_dict(self):
-        d = vars(self)
-        d['last'] = True
-        del d['utm']
-        return d
+    def to_dictionary(self):
+        tmp_dict = copy.deepcopy(vars(self))
+        tmp_dict['last'] = True
+        del tmp_dict['utm']
+        return tmp_dict
 
     def to_db(self, db):
-        db.results.insert_one(self.to_dict())
+        db.results.insert_one(self.to_dictionary())
 
 
 class MarkErrors:
@@ -345,14 +346,14 @@ class StatusSelectOrder(FlaskForm):
 
 
 def get_db_last_results(db):
-    [Result(**remove_id(x)) for x in db.results.find({'last': True})]
+    [Result(**remove_id(res)) for res in db.results.find({'last': True})]
 
 
-def remove_id(d):
+def remove_id(dictionary):
     """ Удаление идентификатора MongoDB """
-    r = dict(d)
-    del r['_id']
-    return r
+    tmp_dict = dict(dictionary)
+    del tmp_dict['_id']
+    return tmp_dict
 
 
 def create_utm_from_request_form(form) -> Utm:

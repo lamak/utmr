@@ -12,6 +12,7 @@ import MySQLdb.cursors as cursors
 import openpyxl
 import requests
 import xmltodict
+from bson.son import SON
 from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
 from flask_wtf import FlaskForm
 from grab import Grab
@@ -1311,6 +1312,41 @@ def status_check():
         ordering = request.form.get('ordering', 'title')
         results.sort(key=lambda result: getattr(result, ordering))
         params['results'] = results
+
+    return render_template(**params)
+
+
+@app.route('/view_errors', methods=['GET'])
+def view_errors():
+    form = FsrarForm()
+    form.fsrar.choices = cfg.utm_choices()
+
+    pipeline_fsrar = [
+        {"$group": {"_id": {
+            "fsrar": "$fsrar",
+        }, "count": {"$sum": 1}}},
+        {"$sort": SON([("count", -1), ("_id", -1)])},
+        {"$limit": 10}
+    ]
+
+    pipeline_error_type = [
+        {"$group": {"_id": {
+            "error": "$error"
+        }, "count": {"$sum": 1}}},
+        {"$sort": SON([("count", -1), ("_id", -1)])}
+    ]
+
+    params = {
+        'form': form,
+        'title': 'История ошибок УТМ',
+        'template_name_or_list': 'error_stats.html',
+        'description': 'Показывает статистику ошибок за предыдущее время по типу или по ТТ',
+        'error_type_total': mongodb.mark_errors.aggregate(pipeline_error_type),
+        'fsrar_total': mongodb.mark_errors.aggregate(pipeline_fsrar),
+    }
+    fsrar = request.args.get('fsrar')
+    if fsrar:
+        params['results'] = mongodb.mark_errors.find({'fsrar': request.args.get('fsrar')}).sort('date', -1)
 
     return render_template(**params)
 

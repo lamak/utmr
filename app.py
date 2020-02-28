@@ -6,7 +6,7 @@ import re
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 import MySQLdb
 import MySQLdb.cursors as cursors
@@ -19,6 +19,7 @@ from flask_wtf import FlaskForm
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
 from pymongo import MongoClient
+from pymongo.database import Database
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
 from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
@@ -667,8 +668,20 @@ def process_errors(errors: list, full: bool, ukm: str):
     return current_results, len(current_marks)
 
 
-def mongo_prev_results(db):
-    db.results.update_many({}, {'$set': {'last': False}})
+def grab_utm_check_results_to_db(utms: List[Utm], db: Database):
+    results: List[Result] = [parse_utm(utm) for utm in utms]
+    results_to_dict = [res.to_dictionary() for res in results]
+    save_results_to_db(results_to_dict, db)
+    return results_to_dict
+
+
+def save_results_to_db(results: List[dict], db: Database):
+    try:
+        db.results.update_many({}, {'$set': {'last': False}})
+        db.results.insert_many(results)
+
+    except Exception as e:
+        logging.info(f"Не удалось записать результаты в БД: {e}")
 
 
 @app.route('/')
@@ -1303,18 +1316,9 @@ def status_check():
     }
 
     if request.method == 'POST':
-        results = [parse_utm(utm) for utm in cfg.utms]
-
-        try:
-            mongo_prev_results(mongodb)
-            [r.to_db(mongodb) for r in results]
-        except:
-            log = f"Не удалось записать результаты в БД"
-            flash(log)
-            logging.info(log)
-
+        results = grab_utm_check_results_to_db(cfg.utms, mongodb)
         ordering = request.form.get('ordering', 'title')
-        results.sort(key=lambda result: getattr(result, ordering))
+        results.sort(key=lambda result: result[ordering])
         params['results'] = results
 
     return render_template(**params)

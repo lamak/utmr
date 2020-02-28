@@ -3,7 +3,7 @@ from time import sleep
 
 from pymongo import MongoClient
 
-from app import Configs, parse_utm, mongo_prev_results
+from app import Configs, grab_utm_check_results_to_db
 
 # Mongo Setup
 mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
@@ -12,12 +12,6 @@ mongodb = client.tempdb
 cfg = Configs(mongodb)
 
 while True:
-    results = [parse_utm(utm) for utm in cfg.utms]
-    try:
-        mongo_prev_results(mongodb)
-        print(f'Предыдущие результаты помечены архивным')
-        [r.to_db(mongodb) for r in results]
-        print(f'Записаны результы {len(results)}')
-    except:
-        print(f"Не удалось записать результаты в БД")
-    sleep(30)
+    results = grab_utm_check_results_to_db(cfg.utms, mongodb)
+    print(f'Записаны результы {len(results)}')
+    sleep(60)

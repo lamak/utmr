@@ -346,10 +346,6 @@ class StatusSelectOrder(FlaskForm):
     ordering = SelectField('ordering', choices=results_ordering_choices)
 
 
-def get_db_last_results(db):
-    [Result(**remove_id(res)) for res in db.results.find({'last': True})]
-
-
 def remove_id(dictionary):
     """ Удаление идентификатора MongoDB """
     tmp_dict = dict(dictionary)
@@ -1300,8 +1296,14 @@ def status():
         'description': 'Результат последней проверки УТМ, обновление каждую минуту',
         'refresh': 60,
         'form': form,
-        'results': mongodb.results.find({'last': True}).sort(request.args.get('ordering', default), 1),
     }
+    try:
+        results = list(mongodb.results.find({'last': True}).sort(request.args.get('ordering', default), 1))
+        params['results'] = results
+    except Exception as e:
+        err = f'Не удалось получить результаты проверки: {e}'
+        flash(f'{e} Выполните полную проверку')
+        logging.error(e)
 
     return render_template(**params)
 
@@ -1353,18 +1355,25 @@ def view_errors():
             result.append({"$limit": limit})
         return result
 
-    pipeline_mark = {x: request.args.get(x) for x in ('mark', 'fsrar') if request.args.get(x, ' ') != ' '}
+    pipeline_mark = {arg: request.args.get(arg) for arg in ('mark', 'fsrar') if request.args.get(arg, ' ') != ' '}
 
     params = {
         'form': form,
         'title': 'История ошибок УТМ',
         'template_name_or_list': 'error_stats.html',
         'description': 'Статистика ошибок за предыдущее время по типу или по ТТ',
-        'error_type_total': mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago)),
-        'fsrar_total': mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, 10)),
     }
-    if pipeline_mark:
-        params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
+
+    try:
+        params['error_type_total']: mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago))
+        params['fsrar_total']: mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, 10))
+        if pipeline_mark:
+            params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
+
+    except Exception as e:
+        err = f'Недоступна БД {e}'
+        logging.error(err)
+        flash(err)
 
     return render_template(**params)
 

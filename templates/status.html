@@ -2,7 +2,7 @@
 {% block body %}
     {% if error %}
         <p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<form action="" method="post" name="send" role="form">
+<form action="" method="get" name="send" role="form">
     <label for="ordering">Сортировка</label>
     <p>{{ form.ordering(class="form-control") }}</p>
     <input type="submit" value="Выполнить" class="btn btn-primary">

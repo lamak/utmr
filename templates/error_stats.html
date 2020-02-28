@@ -8,7 +8,7 @@
         <div class="row">
             {% if fsrar_total %}
                 <div class="col-md-6">
-                    <h2>Сводка по ТТ за все время</h2>
+                    <h2>ТТ за 7 дней</h2>
                     <p>
                         {% for f in fsrar_total %}
                             {{ f['_id']['fsrar'] }} : <code>{{ f['count'] }}</code><br>
@@ -20,7 +20,7 @@
             {% endif %}
             {% if error_type_total %}
                 <div class="col-md-6">
-                    <h2>Сводка по типу ошибок за все время</h2>
+                    <h2>Тип ошибок за 7 дней</h2>
                     {% for e in error_type_total %}
                         {{ e['_id']['error'] }} : <code>{{ e['count'] }} </code><br>
                     {% endfor %}
@@ -30,7 +30,10 @@
         <hr>
         <h2>Детализация по ТТ</h2>
         <form action="" method="get" name="send" role="form">
+            <label for="fsrar">Фильтр по УТМ (необязательно)</label>
             <p>{{ form.fsrar(class="form-control") }}</p>
+            <label for="mark">Фильтр по марке (необязательно)</label>
+            <p>{{ form.mark(class="form-control") }}</p>
             <input type="submit" value="Выполнить" class="btn btn-primary">
         </form>
         <br>

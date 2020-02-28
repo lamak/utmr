@@ -1318,35 +1318,46 @@ def status_check():
 
 @app.route('/view_errors', methods=['GET'])
 def view_errors():
-    form = FsrarForm()
+    form = MarkForm()
     form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices.insert(0, (0, '---'))
+    week_ago = datetime.now() - timedelta(days=7)
 
-    pipeline_fsrar = [
-        {"$group": {"_id": {
-            "fsrar": "$fsrar",
-        }, "count": {"$sum": 1}}},
-        {"$sort": SON([("count", -1), ("_id", -1)])},
-        {"$limit": 10}
-    ]
+    def pipeline_group_by(field: str, start_date: datetime, limit: Optional[int] = None, ):
+        """ Итоги сгруппированны по полям, с указанной даты, опционально лимит """
+        result = [
+            {"$match": {
+                "date": {
+                    "$gte": start_date
+                },
+            }
+            },
+            {"$group": {
+                "_id": {
+                    f"{field}": f"${field}",
+                },
+                "count": {"$sum": 1}
+            }
+            },
+            {"$sort": SON([("count", -1), ("_id", -1)])},
 
-    pipeline_error_type = [
-        {"$group": {"_id": {
-            "error": "$error"
-        }, "count": {"$sum": 1}}},
-        {"$sort": SON([("count", -1), ("_id", -1)])}
-    ]
+        ]
+        if limit:
+            result.append({"$limit": limit})
+        return result
+
+    pipeline_mark = {x: request.args.get(x) for x in ('mark', 'fsrar') if request.args.get(x, ' ') != ' '}
 
     params = {
         'form': form,
         'title': 'История ошибок УТМ',
         'template_name_or_list': 'error_stats.html',
-        'description': 'Показывает статистику ошибок за предыдущее время по типу или по ТТ',
-        'error_type_total': mongodb.mark_errors.aggregate(pipeline_error_type),
-        'fsrar_total': mongodb.mark_errors.aggregate(pipeline_fsrar),
+        'description': 'Статистика ошибок за предыдущее время по типу или по ТТ',
+        'error_type_total': mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago)),
+        'fsrar_total': mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, 10)),
     }
-    fsrar = request.args.get('fsrar')
-    if fsrar:
-        params['results'] = mongodb.mark_errors.find({'fsrar': request.args.get('fsrar')}).sort('date', -1)
+    if pipeline_mark:
+        params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
 
     return render_template(**params)
 

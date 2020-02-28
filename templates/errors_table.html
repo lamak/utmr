@@ -3,7 +3,7 @@
     {% for u in results %}
         <tr>
             <td>
-                <span class="help-block">{{ u['date'] }}</span>
+                <span class="help-block">{{ u['date'] }} <strong>{{ u['fsrar'] }}</strong></span>
                 <strong>{{ u['error'] }}</strong><br>
                 <code>{{ u['mark'] }}</code>
             </td>

@@ -1274,15 +1274,18 @@ def add_utm():
     return render_template(**params)
 
 
-@app.route('/status', methods=['GET'])
+@app.route('/status', methods=['GET', 'POST'])
 def status():
+    default = 'title'
+    form = StatusSelectOrder()
+    form.ordering.date = default
     params = {
         'template_name_or_list': 'status.html',
         'title': 'Статус (новый)',
         'description': 'Результат последней проверки УТМ, обновление каждую минуту',
         'refresh': 60,
-        'form': StatusSelectOrder(),
-        'results': mongodb.results.find({'last': True}).sort(request.form.get('ordering', 'title'), 1),
+        'form': form,
+        'results': mongodb.results.find({'last': True}).sort(request.args.get('ordering', default), 1),
     }
 
     return render_template(**params)

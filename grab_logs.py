@@ -111,6 +111,7 @@ def parse_errors(errors: list, fsrar: str):
     nonvalid = 'Невалидные марки'
     bad_time = 'продажа в запрещенное время'
     no_filter = 'Настройки еще не обновлены'
+    last_cheque = 'Подпись предыдущего чека не завершена.'
     no_key = 'Ошибка поиска модели'
 
     for e in errors:
@@ -132,6 +133,9 @@ def parse_errors(errors: list, fsrar: str):
 
             elif no_key in error_text:
                 processed_errors.append(MarkErrors(error_time, fsrar, no_key))
+
+            elif last_cheque in error_text:
+                processed_errors.append(MarkErrors(error_time, fsrar, last_cheque))
 
             else:
                 _, title, error_line = error_text.split(':')

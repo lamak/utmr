@@ -1306,20 +1306,19 @@ def status():
     return render_template(**params)
 
 
-@app.route('/status_check', methods=['GET', 'POST'])
+@app.route('/status_check', methods=['GET'])
 def status_check():
     params = {
-        'template_name_or_list': 'status.html',
         'title': 'Проверка УТМ',
+        'template_name_or_list': 'status.html',
         'description': 'Проверка по требованию, выполняектся около минуты',
         'form': StatusSelectOrder(),
     }
 
-    if request.method == 'GET':
-        results = grab_utm_check_results_to_db(cfg.utms, mongodb)
-        ordering = request.form.get('ordering', 'title')
-        results.sort(key=lambda result: result[ordering])
-        params['results'] = results
+    results = grab_utm_check_results_to_db(cfg.utms, mongodb)
+    ordering = request.form.get('ordering', 'title')
+    results.sort(key=lambda result: result[ordering])
+    params['results'] = results
 
     return render_template(**params)
 

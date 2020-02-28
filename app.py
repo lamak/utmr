@@ -685,7 +685,7 @@ def ttn():
         'form': form,
     }
 
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == 'POST':
         file = 'ttn.xml'
         xml = get_xml_template(file)
 
@@ -716,7 +716,7 @@ def reject():
         'form': form,
     }
 
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == 'POST':
         file = 'reject.xml'
         filepath = get_xml_template(file)
 
@@ -806,7 +806,7 @@ def confirm_repeal():
         'form': form,
     }
 
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == 'POST':
         file = 'wbrepealconfirm.xml'
         filepath = get_xml_template(file)
         wbregid = request.form['wbregid'].strip()
@@ -932,7 +932,7 @@ def cheque():
         'title': 'Отправка чека',
         'form': form,
     }
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == 'POST':
         utm = get_instance(request.form['fsrar'])
 
         # creating document with cheque header attributes
@@ -979,7 +979,7 @@ def check_mark():
         'description': 'Запрос наличия марки в УТМ (для помарочного учета)',
         'form': form,
     }
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == 'POST':
         res = None
         file = 'queryfilter.xml'
         xml = get_xml_template(file)

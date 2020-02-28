@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}
+        <p class=error><strong>Error:</strong> {{ error }} </p>
+    {% endif %}
+
+    <div class="container">
+        <div class="row">
+            {% if fsrar_total %}
+                <div class="col-md-6">
+                    <h2>Сводка по ТТ за все время</h2>
+                    <p>
+                        {% for f in fsrar_total %}
+                            {{ f['_id']['fsrar'] }} : <code>{{ f['count'] }}</code><br>
+                        {% endfor %}
+                        ...
+                    </p>
+
+                </div>
+            {% endif %}
+            {% if error_type_total %}
+                <div class="col-md-6">
+                    <h2>Сводка по типу ошибок за все время</h2>
+                    {% for e in error_type_total %}
+                        {{ e['_id']['error'] }} : <code>{{ e['count'] }} </code><br>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <hr>
+        <h2>Деталация по ТТ</h2>
+        <form action="" method="get" name="send" role="form">
+            <p>{{ form.fsrar(class="form-control") }}</p>
+            <input type="submit" value="Выполнить" class="btn btn-primary">
+        </form>
+        <br>
+
+        {% if results %}
+            {% include 'errors_table.html' %}
+        {% endif %}
+{% endblock %}

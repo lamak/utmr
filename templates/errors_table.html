@@ -1,0 +1,13 @@
+<table class="table table-hover">
+    <tbody>
+    {% for u in results %}
+        <tr>
+            <td>
+                <span class="help-block">{{ u['date'] }}</span>
+                <strong>{{ u['error'] }}</strong><br>
+                <code>{{ u['mark'] }}</code>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>

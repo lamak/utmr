@@ -1315,7 +1315,7 @@ def status_check():
         'form': StatusSelectOrder(),
     }
 
-    if request.method == 'POST':
+    if request.method == 'GET':
         results = grab_utm_check_results_to_db(cfg.utms, mongodb)
         ordering = request.form.get('ordering', 'title')
         results.sort(key=lambda result: result[ordering])

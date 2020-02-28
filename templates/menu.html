@@ -4,7 +4,8 @@
             <ul class="nav navbar-nav">
                 <li><a href="{{ url_for('status') }}" title="Результат последней проверки">Статус УТМ</a></li>
                 <li><a href="{{ url_for('status_check') }}" title="Опрос всех УТМ">Проверка УТМ</a></li>
-                <li><a href="{{ url_for('get_utm_errors') }}" title="Ошибки продажи марок УТМ">Журнал ошибок</a></li>
+                <li><a href="{{ url_for('get_utm_errors') }}" title="За сегодня">Ошибки</a></li>
+                <li><a href="{{ url_for('view_errors') }}" title="Все время, статистика">История ошибок</a></li>
                 <li><a href="{{ url_for('check_mark') }}" title="Проверка в УТМ">Проверка марки</a></li>
 
                 <li class="dropdown">

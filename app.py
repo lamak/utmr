@@ -1355,7 +1355,7 @@ def view_errors():
             result.append({"$limit": limit})
         return result
 
-    pipeline_mark = {arg: request.args.get(arg) for arg in ('mark', 'fsrar') if request.args.get(arg, ' ') != ' '}
+    pipeline_mark = {arg: request.args.get(arg) for arg in ('mark', 'fsrar') if request.args.get(arg, '0') != '0'}
 
     params = {
         'form': form,
@@ -1365,8 +1365,8 @@ def view_errors():
     }
 
     try:
-        params['error_type_total']: mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago))
-        params['fsrar_total']: mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, 10))
+        params['error_type_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago))
+        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, 10))
         if pipeline_mark:
             params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
 

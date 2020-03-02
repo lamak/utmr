@@ -43,6 +43,9 @@ HUMAN_DATE_FORMAT = '%Y-%m-%d'
 ALLOWED_EXTENSIONS = {'xlsx', }
 WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
 
+MARK_ERRORS_LAST_DAYS = int(os.environ.get('MARK_ERRORS_LAST_DAYS', 7))
+MARK_ERRORS_LAST_UTMS = int(os.environ.get('MARK_ERRORS_LAST_UTMS', 15))
+
 # MySQL config for UKM
 mysql_config = {
     'db': os.environ.get('UKM_DB'),
@@ -1372,8 +1375,8 @@ def view_errors():
     form.fsrar.choices = cfg.utm_choices()
     add_default_choice(form.fsrar.choices)
     form.fsrar.data = int(request.args.get('fsrar', 0))
-    last_days = 7
-    last_utms = 10
+    last_days = MARK_ERRORS_LAST_DAYS
+    last_utms = MARK_ERRORS_LAST_UTMS
     week_ago = datetime.now() - timedelta(days=last_days)
 
     params = {
@@ -1391,7 +1394,7 @@ def view_errors():
         form.error.choices = add_default_choice(choices_list)
 
         params['error_type_total'] = errors_types
-        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('title', week_ago, ))
+        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('title', week_ago, last_utms))
 
         if request.args:
             # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них

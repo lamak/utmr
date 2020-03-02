@@ -30,9 +30,18 @@
         <hr>
         <h2>Детализация по ТТ</h2>
         <form action="" method="get" name="send" role="form">
-            <label for="fsrar">Фильтр по УТМ (необязательно)</label>
-            <p>{{ form.fsrar(class="form-control") }}</p>
-            <label for="mark">Фильтр по марке (необязательно)</label>
+            <span class="help-block">Все поля необязательны</span>
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="fsrar">УТМ</label>
+                    <p>{{ form.fsrar(class="form-control") }}</p>
+                </div>
+                <div class="col-md-6">
+                    <label for="error">Тип ошибки</label>
+                    <p>{{ form.error(class="form-control") }}</p>
+                </div>
+            </div>
+            <label for="mark">Акцизная марка</label>
             <p>{{ form.mark(class="form-control") }}</p>
             <input type="submit" value="Выполнить" class="btn btn-primary">
         </form>

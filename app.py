@@ -291,6 +291,11 @@ class MarkForm(FsrarForm):
     mark = StringField('mark', validators=[DataRequired()])
 
 
+class MarkFormError(FsrarForm):
+    error = SelectField('error_type', coerce=int)
+    mark = StringField('mark')
+
+
 class TTNForm(FsrarForm):
     wbregid = StringField('wbregid', validators=[DataRequired()])
 
@@ -1327,13 +1332,9 @@ def status_check():
 
 @app.route('/view_errors', methods=['GET'])
 def view_errors():
-    form = MarkForm()
-    form.mark.flags.required = False
-    form.fsrar.choices = cfg.utm_choices()
-    form.fsrar.choices.insert(0, (0, 'Выберите ТТ для фильтра'))
-    form.fsrar.data = int(request.args.get('fsrar', 0))
-    week_ago = datetime.now() - timedelta(days=7)
-    dashboard_limit = 10
+    def add_default_choice(choices: list) -> list:
+        choices.insert(0, (0, 'Выберите...'))
+        return choices
 
     def pipeline_group_by(field: str, start_date: datetime, limit: Optional[int] = None, ):
         """ Итоги сгруппированны по полям, с указанной даты, опционально лимит """
@@ -1359,7 +1360,19 @@ def view_errors():
         return result
 
     def validate_arg(arg: str) -> bool:
+        """ Исключаем невалидные аргументы """
         return False if arg in ['0', '', ' ', '', None] else True
+
+    def short_choices_hash(title: str) -> int:
+        """ ИД для динамических полей выбора, у которых нет естественных идентификаторов """
+        return hash(title) % 256
+
+    form = MarkFormError()
+    form.fsrar.choices = cfg.utm_choices()
+    add_default_choice(form.fsrar.choices)
+    form.fsrar.data = int(request.args.get('fsrar', 0))
+    week_ago = datetime.now() - timedelta(days=7)
+    dashboard_limit = 10
 
     params = {
         'form': form,
@@ -1369,10 +1382,25 @@ def view_errors():
     }
 
     try:
-        params['error_type_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago))
+        # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
+        errors_types = list(mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago)))
+        # Собираем выпадайку с вариантами, добавляем туда пустой элемент
+        choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
+        form.error.choices = add_default_choice(choices_list)
+
+        params['error_type_total'] = errors_types
         params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, dashboard_limit))
+
         if request.args:
+            # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
             pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
+            error_arg = request.args.get('error')
+            # Т.к. ошибки у нас динамические, берем из словаря по ИД
+            if validate_arg(error_arg):
+                form.error.data = int(request.args.get('error', 0))
+                choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
+                pipeline_mark['error'] = choices_dict.get(int(error_arg))
+
             params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
 
     except Exception as e:

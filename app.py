@@ -1372,14 +1372,15 @@ def view_errors():
     form.fsrar.choices = cfg.utm_choices()
     add_default_choice(form.fsrar.choices)
     form.fsrar.data = int(request.args.get('fsrar', 0))
-    week_ago = datetime.now() - timedelta(days=7)
-    dashboard_limit = 10
+    last_days = 7
+    last_utms = 10
+    week_ago = datetime.now() - timedelta(days=last_days)
 
     params = {
         'form': form,
         'title': 'История ошибок УТМ',
         'template_name_or_list': 'error_stats.html',
-        'description': 'Статистика ошибок за предыдущее время по типу или по ТТ',
+        'description': f'Статистика ошибок за {last_days}',
     }
 
     try:
@@ -1390,7 +1391,7 @@ def view_errors():
         form.error.choices = add_default_choice(choices_list)
 
         params['error_type_total'] = errors_types
-        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, dashboard_limit))
+        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('title', week_ago, ))
 
         if request.args:
             # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
@@ -1402,7 +1403,7 @@ def view_errors():
                 choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
                 pipeline_mark['error'] = choices_dict.get(int(error_arg))
 
-            params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
+            params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('title', 1), ('date', -1)])
 
     except Exception as e:
         err = f'Недоступна БД {e}'

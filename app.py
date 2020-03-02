@@ -1328,9 +1328,12 @@ def status_check():
 @app.route('/view_errors', methods=['GET'])
 def view_errors():
     form = MarkForm()
+    form.mark.flags.required = False
     form.fsrar.choices = cfg.utm_choices()
-    form.fsrar.choices.insert(0, (0, '---'))
+    form.fsrar.choices.insert(0, (0, 'Выберите ТТ для фильтра'))
+    form.fsrar.data = int(request.args.get('fsrar', 0))
     week_ago = datetime.now() - timedelta(days=7)
+    dashboard_limit = 10
 
     def pipeline_group_by(field: str, start_date: datetime, limit: Optional[int] = None, ):
         """ Итоги сгруппированны по полям, с указанной даты, опционально лимит """
@@ -1355,7 +1358,8 @@ def view_errors():
             result.append({"$limit": limit})
         return result
 
-    pipeline_mark = {arg: request.args.get(arg) for arg in ('mark', 'fsrar') if request.args.get(arg, '0') != '0'}
+    def validate_arg(arg: str) -> bool:
+        return False if arg in ['0', '', ' ', '', None] else True
 
     params = {
         'form': form,
@@ -1366,8 +1370,9 @@ def view_errors():
 
     try:
         params['error_type_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago))
-        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, 10))
-        if pipeline_mark:
+        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('fsrar', week_ago, dashboard_limit))
+        if request.args:
+            pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
             params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('fsrar', 1), ('date', -1)])
 
     except Exception as e:

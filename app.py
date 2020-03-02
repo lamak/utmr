@@ -179,15 +179,6 @@ class Result:
         db.results.insert_one(self.to_dictionary())
 
 
-class MarkErrors:
-    def __init__(self, event_date, fsrar, title, error, mark=None):
-        self.fsrar = fsrar
-        self.title = title
-        self.date = event_date
-        self.error = error
-        self.mark = mark
-
-
 class Configs:
     def __init__(self, db):
         self.use_db = bool(os.environ.get('UTMR_USE_DB', False))

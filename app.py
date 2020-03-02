@@ -177,8 +177,9 @@ class Result:
 
 
 class MarkErrors:
-    def __init__(self, event_date, fsrar, error, mark=None):
+    def __init__(self, event_date, fsrar, title, error, mark=None):
         self.fsrar = fsrar
+        self.title = title
         self.date = event_date
         self.error = error
         self.mark = mark
@@ -1048,7 +1049,7 @@ def get_utm_errors():
             utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
 
             errors_found, checks, err = parse_log_for_errors(transport_log)
-            errors_objects = parse_errors(errors_found, u.fsrar)
+            errors_objects = parse_errors(errors_found, u)
             error_results, marks = process_errors(errors_objects, not all_utm, u.ukm_host())
             summary = err if err is not None else f'Всего чеков: {checks}, ошибок {len(errors_objects)}, уникальных {marks}'
             results[utm_header + summary] = error_results

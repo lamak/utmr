@@ -48,7 +48,8 @@ class Utm:
 
 class MarkErrors:
 
-    def __init__(self, logdate, fsrar, error, mark=None):
+    def __init__(self, logdate, title, fsrar, error, mark=None):
+        self.title = title
         self.fsrar = fsrar
         self.date = logdate
         self.error = error
@@ -104,7 +105,7 @@ def parse_log_for_errors(filename: str) -> (list, int, str):
     return error_mark_events, cheques_counter, err
 
 
-def parse_errors(errors: list, fsrar: str):
+def parse_errors(errors: list, utm: Utm):
     """ собираем список объектов ошибок для дальнешей обработки"""
     processed_errors = []
 
@@ -123,29 +124,29 @@ def parse_errors(errors: list, fsrar: str):
                 a, b = error_text.find('['), error_text.find(']')
                 marks = error_text[a + 1:b].split(', ')
                 for m in marks:
-                    processed_errors.append(MarkErrors(error_time, fsrar, nonvalid, m))
+                    processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, nonvalid, m))
 
             elif bad_time in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, bad_time))
+                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, bad_time))
 
             elif no_filter in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, no_filter))
+                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, no_filter))
 
             elif no_key in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, no_key))
+                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, no_key))
 
             elif last_cheque in error_text:
-                processed_errors.append(MarkErrors(error_time, fsrar, last_cheque))
+                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, last_cheque))
 
             else:
                 _, title, error_line = error_text.split(':')
                 split_results = error_line.split(',')
                 for mark_res in split_results:
                     mark, description = get_marks_from_errors(mark_res)
-                    processed_errors.append(MarkErrors(error_time, fsrar, description, mark))
+                    processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, description, mark))
 
         except ValueError:
-            processed_errors.append(MarkErrors(error_time, fsrar, 'Не удалось обработать ошибку: ' + error_text))
+            processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, 'Не удалось обработать ошибку: ' + error_text))
 
     return processed_errors
 
@@ -191,7 +192,7 @@ def process_transport_transaction_log(u: Utm, file: str):
 
     if file is not None:
         errors_found, _, _ = parse_log_for_errors(file)
-        errors_objects = parse_errors(errors_found, u.fsrar)
+        errors_objects = parse_errors(errors_found, u)
 
         err_to_mail = []
         for e in errors_objects:

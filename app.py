@@ -15,15 +15,15 @@ import requests
 import xmltodict
 from bson.son import SON
 from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
-from flask_wtf import FlaskForm
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
 from pymongo import MongoClient
 from pymongo.database import Database
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
-from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
-from wtforms.validators import DataRequired, Length, Regexp
+
+from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
+    MarkForm, ChequeForm, WBRepealConfirmForm, RequestRepealForm, TTNForm
 
 LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
 UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
@@ -262,88 +262,6 @@ class Configs:
         else:
             with open(self.config, 'w') as f:
                 f.write(utm.to_csv())
-
-
-class FsrarForm(FlaskForm):
-    fsrar = SelectField('fsrar', coerce=int)
-
-
-class UploadForm(FlaskForm):
-    file = FileField()
-
-
-class RestsForm(FsrarForm):
-    alc_code = StringField('alc_code')
-    limit = IntegerField('limit')
-
-
-class TicketForm(FsrarForm):
-    search = StringField('search', validators=[DataRequired()])
-    limit = IntegerField('limit')
-
-
-class MarkForm(FsrarForm):
-    mark = StringField('mark', validators=[DataRequired()])
-
-
-class MarkFormError(FsrarForm):
-    error = SelectField('error_type', coerce=int)
-    mark = StringField('mark')
-
-
-class TTNForm(FsrarForm):
-    wbregid = StringField('wbregid', validators=[DataRequired()])
-
-
-class RequestRepealForm(TTNForm):
-    r_type = SelectField('r_type',
-                         choices=(('WB', 'TTN'), ('AWO', 'Акт списания (WOF-)'), ('ACO', 'Акт постановки (INV-)')))
-
-
-class WBRepealConfirmForm(TTNForm):
-    is_confirm = SelectField('is_confirm', choices=(('Accepted', 'Подтвердить'), ('Rejected', 'Отклонить')))
-
-
-class ChequeForm(FsrarForm):
-    kassa = StringField('kassa', validators=[DataRequired(), Length(min=1, max=20, message='от 1 до 20 символов')])
-    inn = StringField('inn', validators=[DataRequired(), Length(min=10, max=10, message='10 цифр')])
-    kpp = StringField('kpp', validators=[DataRequired(), Length(min=9, max=9, message='9 цифр')])
-    number = StringField('number', validators=[DataRequired(), Length(min=1, max=4, message='от 1 до 4 цифр')])
-    shift = StringField('shift', validators=[DataRequired(), Length(min=1, max=4, message='от 1 до 4 цифр')])
-    bottle = StringField('bottle',
-                         validators=[DataRequired(), Length(min=68, max=150, message='68 или 150 символов')])
-    price = StringField('price', validators=[
-        DataRequired(),
-        Regexp('[-]?\d+[.]\d+', message='Цена с минусом, разделитель точка, два десятичных знака'),
-        Length(min=1, max=8, message='Слишком большое число')
-    ])
-
-
-class CreateUpdateUtm(FlaskForm):
-    fsrar = StringField('fsrar', validators=[DataRequired()])
-    title = StringField('title', validators=[DataRequired()])
-    host = StringField('host', validators=[DataRequired()])
-    ukm = StringField('ukm', validators=[DataRequired()])
-    active = BooleanField('active')
-    path = StringField('path')
-
-
-results_ordering_choices = (
-    ('fsrar', 'ФСРАР'),
-    ('title', 'Адрес'),
-    ('legal', 'Организация'),
-    ('surname', 'Директор'),
-    ('gost', 'ГОСТ'),
-    ('pki', 'PKI'),
-    ('host', 'Сервер'),
-    ('filter', 'Фильтр'),
-    ('license', 'Лицензия'),
-    ('version', 'Версия'),
-)
-
-
-class StatusSelectOrder(FlaskForm):
-    ordering = SelectField('ordering', choices=results_ordering_choices)
 
 
 def remove_id(dictionary):

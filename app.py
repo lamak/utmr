@@ -462,9 +462,6 @@ def parse_reply_nattn(url: str):
     if url is not None:
         try:
             response = requests.get(url)
-        except requests.exceptions.RequestException as e:
-            flash('Ошибка получения списка ReplyNoAnswerTTN', url)
-        try:
             tree = ET.fromstring(response.text)
             for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}WbRegID'):
                 ttn_list.append(elem.text)
@@ -474,6 +471,9 @@ def parse_reply_nattn(url: str):
                 doc_list.append(elem.text)
             for i, ttn in enumerate(ttn_list):
                 nattn_list.append([ttn_list[i], date_list[i], doc_list[i]])
+        except requests.exceptions.RequestException as e:
+            flash('Ошибка получения списка ReplyNoAnswerTTN', url)
+
         except Exception as e:
             flash(f'Ошибка обработки XML {e}', url)
     return nattn_list
@@ -481,7 +481,6 @@ def parse_reply_nattn(url: str):
 
 def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
     """ Выполнение запроса к MySQL """
-    mysql_config['host'] = ukm_hostname
 
     try:
         mysql_config = app.config['MYSQL_CONN']
@@ -494,7 +493,7 @@ def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
 
         connection.close()
 
-    except (MySQLdb._exceptions.OperationalError, TypeError) as e:
+    except (MySQLdb.OperationalError, TypeError) as e:
         logging.error(e)
         data = None
 
@@ -1193,9 +1192,6 @@ def add_utm():
 
 @app.route('/status', methods=['GET', 'POST'])
 def status():
-    conn = MongoClient(app.config['MONGO_CONN'])
-    mongodb = getattr(conn, app.config['MONGO_DB'])
-
     default = 'title'
     form = StatusSelectOrder()
     form.ordering.date = default
@@ -1207,7 +1203,11 @@ def status():
         'form': form,
     }
     try:
-        results = list(mongodb.results.find({'last': True}).sort(request.args.get('ordering', default), 1))
+        with MongoClient(app.config['MONGO_CONN']) as client:
+            db = client[app.config['MONGO_DB']]
+            col = db[app.config['MONGO_COL_RES']]
+
+            results = list(col.find({'last': True}).sort(request.args.get('ordering', default), 1))
         params['results'] = results
     except Exception as e:
         err = f'Не удалось получить результаты проверки: {e}'
@@ -1226,8 +1226,9 @@ def status_check():
         'form': StatusSelectOrder(),
     }
 
-    conn = MongoClient(app.config['MONGO_CONN'])
-    mongodb = getattr(conn, app.config['MONGO_DB'])
+    with MongoClient(app.config['MONGO_CONN']) as client:
+        db = client[app.config['MONGO_DB']]
+        results = grab_utm_check_results_to_db(cfg.utms, db)
 
     results = grab_utm_check_results_to_db(cfg.utms, mongodb)
     ordering = request.form.get('ordering', 'title')
@@ -1274,8 +1275,6 @@ def view_errors():
         """ ИД для динамических полей выбора, у которых нет естественных идентификаторов """
         return hash(title) % 256
 
-    conn = MongoClient(app.config['MONGO_CONN'])
-    mongodb = getattr(conn, app.config['MONGO_DB'])
     last_days = app.config['MARK_ERRORS_LAST_DAYS']
     last_utms = app.config['MARK_ERRORS_LAST_UTMS']
 
@@ -1293,26 +1292,30 @@ def view_errors():
     }
 
     try:
-        # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
-        errors_types = list(mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago)))
-        # Собираем выпадайку с вариантами, добавляем туда пустой элемент
-        choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
-        form.error.choices = add_default_choice(choices_list)
+        with MongoClient(app.config['MONGO_CONN']) as client:
+            db = client[app.config['MONGO_DB']]
+            col = db[app.config['MONGO_COL_ERR']]
 
-        params['error_type_total'] = errors_types
-        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('title', week_ago, last_utms))
+            # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
+            errors_types = list(col.aggregate(pipeline_group_by('error', week_ago)))
+            # Собираем выпадайку с вариантами, добавляем туда пустой элемент
+            choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
+            form.error.choices = add_default_choice(choices_list)
 
-        if request.args:
-            # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
-            pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
-            error_arg = request.args.get('error')
-            # Т.к. ошибки у нас динамические, берем из словаря по ИД
-            if validate_arg(error_arg):
-                form.error.data = int(request.args.get('error', 0))
-                choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
-                pipeline_mark['error'] = choices_dict.get(int(error_arg))
+            params['error_type_total'] = errors_types
+            params['fsrar_total'] = col.aggregate(pipeline_group_by('title', week_ago, last_utms))
 
-            params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('title', 1), ('date', -1)])
+            if request.args:
+                # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
+                pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
+                error_arg = request.args.get('error')
+                # Т.к. ошибки у нас динамические, берем из словаря по ИД
+                if validate_arg(error_arg):
+                    form.error.data = int(request.args.get('error', 0))
+                    choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
+                    pipeline_mark['error'] = choices_dict.get(int(error_arg))
+
+                params['results'] = col.find(pipeline_mark).sort([('title', 1), ('date', -1)])
 
     except Exception as e:
         err = f'Недоступна БД {e}'
@@ -1335,9 +1338,9 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s'
 )
 
-conn = MongoClient(app.config['MONGO_CONN'])
-mongodb = getattr(conn, app.config['MONGO_DB'])
-cfg = Configs(mongodb)
+with MongoClient(app.config['MONGO_CONN']) as client:
+    db = client[app.config['MONGO_DB']]
+    cfg = Configs(db)
 
 for file in app.config.get('WORKING_DIRS', ()):
     create_folder(file)

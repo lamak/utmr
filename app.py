@@ -484,6 +484,9 @@ def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
     mysql_config['host'] = ukm_hostname
 
     try:
+        mysql_config = app.config['MYSQL_CONN']
+        mysql_config['host'] = ukm_hostname
+
         connection = MySQLdb.connect(**mysql_config)
         with connection.cursor() as cursor:
             cursor.execute(query)

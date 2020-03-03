@@ -30,38 +30,6 @@ app.secret_key = 'dev'
 app.config.from_object('config.AppConfig')
 
 
-# LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
-# UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
-# app.config['RESULT_FOLDER'] = os.environ.get('app.config['RESULT_FOLDER']', 'results')
-#
-# UTM_PORT = os.environ.get('UTM_PORT', '8080')
-# UTM_CONFIG = os.environ.get('UTM_CONFIG', 'config')
-# UTM_LOG_PATH = os.environ.get('UTM_PORT', 'c$/utm/transporter/l/')
-# DEFAULT_XML_PATH = os.environ.get('DEFAULT_XML_PATH')
-#
-# CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH', './')
-# CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE', 'sku-body-template.xlsx')
-#
-# CONVERTER_DATE_FORMAT = '%Y%m%d'
-# LOGFILE_DATE_FORMAT = '%Y_%m_%d'
-# HUMAN_DATE_FORMAT = '%Y-%m-%d'
-# ALLOWED_EXTENSIONS = {'xlsx', }
-# WORKING_DIRS = [UPLOAD_FOLDER, app.config['RESULT_FOLDER']]
-#
-# MARK_ERRORS_LAST_DAYS = int(os.environ.get('MARK_ERRORS_LAST_DAYS', 7))
-# MARK_ERRORS_LAST_UTMS = int(os.environ.get('MARK_ERRORS_LAST_UTMS', 15))
-#
-# # MySQL config for UKM
-# mysql_config = {
-#     'db': os.environ.get('UKM_DB'),
-#     'user': os.environ.get('UKM_USER'),
-#     'passwd': os.environ.get('UKM_PASSWD'),
-#     'cursorclass': cursors.DictCursor,
-#     'charset': 'utf8',
-#     'use_unicode': True,
-# }
-
-
 class Utm:
     """ УТМ
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
@@ -156,9 +124,6 @@ class Result:
         tmp_dict['last'] = True
         del tmp_dict['utm']
         return tmp_dict
-
-    def to_db(self, db):
-        db.results.insert_one(self.to_dictionary())
 
 
 class Configs:
@@ -463,6 +428,7 @@ def parse_reply_nattn(url: str):
         try:
             response = requests.get(url)
             tree = ET.fromstring(response.text)
+
             for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}WbRegID'):
                 ttn_list.append(elem.text)
             for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}ttnDate'):
@@ -1209,6 +1175,7 @@ def status():
 
             results = list(col.find({'last': True}).sort(request.args.get('ordering', default), 1))
         params['results'] = results
+
     except Exception as e:
         err = f'Не удалось получить результаты проверки: {e}'
         flash(f'{e} Выполните полную проверку')
@@ -1230,7 +1197,6 @@ def status_check():
         db = client[app.config['MONGO_DB']]
         results = grab_utm_check_results_to_db(cfg.utms, db)
 
-    results = grab_utm_check_results_to_db(cfg.utms, mongodb)
     ordering = request.form.get('ordering', 'title')
     results.sort(key=lambda result: result[ordering])
     params['results'] = results
@@ -1323,13 +1289,6 @@ def view_errors():
         flash(err)
 
     return render_template(**params)
-
-
-# print(app.config)
-
-# Mongo Setup
-# mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
-# client = MongoClient(app.config['MONGO_CONN']).tempdb
 
 
 logging.basicConfig(

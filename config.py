@@ -11,6 +11,7 @@ class AppConfig(object):
     UTM_PORT = os.environ.get('UTM_PORT', '8080')
     UTM_CONFIG = os.environ.get('UTM_CONFIG', 'config')
     UTM_LOG_PATH = os.environ.get('UTM_PORT', 'c$/utm/transporter/l/')
+    UTM_LOG_NAME = os.environ.get('UTM_LOG_NAME', 'transport_transaction.log')
     DEFAULT_XML_PATH = os.environ.get('DEFAULT_XML_PATH')
 
     CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH', './')
@@ -35,7 +36,13 @@ class AppConfig(object):
     }
 
     MONGO_CONN = os.environ.get('MONGODB_CONN', 'localhost:27017')
-    MONGO_DB = os.environ.get('MONGO_DB', 'tepmdb')
+    MONGO_DB = os.environ.get('MONGO_DB', 'tempdb')
     MONGO_COL_ERR = os.environ.get('MONGO_COL_ERR', 'mark_errors')
     MONGO_COL_UTM = os.environ.get('MONGO_COL_UTM', 'utm')
     MONGO_COL_RES = os.environ.get('MONGO_COL_RES', 'results')
+
+    MAIL_USER = os.environ.get('MAIL_USER', '')
+    MAIL_PASS = os.environ.get('MAIL_PASS', '')
+    MAIL_HOST = os.environ.get('MAIL_HOST', '')
+    MAIL_FROM = os.environ.get('MAIL_FROM', '')
+    MAIL_TO = os.environ.get('MAIL_TO', '')

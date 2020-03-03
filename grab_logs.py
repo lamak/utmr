@@ -9,54 +9,23 @@ from typing import Optional, Tuple
 
 from pymongo import MongoClient
 
-# UTM LOG
-UTM_LOG_PATH = os.environ.get('UTM_LOG_PATH', 'c$/utm/transporter/l/')
-UTM_LOG_NAME = os.environ.get('UTM_LOG_NAME', 'transport_transaction.log')
-UTM_CONFIG = os.environ.get('UTM_LOG_PATH', 'config')
-DOMAIN = os.environ.get('USERDNSDOMAIN')
-
-# EMAIL
-MAIL_USER = os.environ.get('MAIL_USER', '')
-MAIL_PASS = os.environ.get('MAIL_PASS', '')
-MAIL_HOST = os.environ.get('MAIL_HOST', '')
-MAIL_FROM = os.environ.get('MAIL_FROM', '')
-MAIL_TO = os.environ.get('MAIL_TO', '')
-
-# Mongo
-mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
-client = MongoClient(mongo_conn)
-db = client.tempdb
+from app import Utm, Configs
+from config import AppConfig
 
 logging.basicConfig(filename='mark.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 
-class Utm:
-    """ УТМ
-    Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
-    """
-
-    def __init__(self, fsrar, host, title, path, ukm):
-        self.fsrar = fsrar
-        self.host = host
-        self.title = title
-        self.path = path
-        self.ukm = ukm
-
-    def log_dir(self):
-        return f'//{self.host}.{DOMAIN}/{UTM_LOG_PATH}'
-
-
 class MarkErrors:
 
-    def __init__(self, logdate, title, fsrar, error, mark=None):
+    def __init__(self, log_date, title, fsrar, error, mark=None):
         self.title = title
         self.fsrar = fsrar
-        self.date = logdate
+        self.date = log_date
         self.error = error
         self.mark = mark
 
 
-def get_utm_list(filename: str = UTM_CONFIG):
+def get_utm_list(filename: str = AppConfig.UTM_CONFIG):
     with open(filename, 'r', encoding='utf-8') as f:
         utms = [Utm(*u.split(';')) for u in f.read().splitlines()]
         utms.sort(key=lambda utm: utm.fsrar)
@@ -146,12 +115,13 @@ def parse_errors(errors: list, utm: Utm):
                     processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, description, mark))
 
         except ValueError:
-            processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, 'Не удалось обработать ошибку: ' + error_text))
+            processed_errors.append(
+                MarkErrors(error_time, utm.title, utm.fsrar, 'Не удалось обработать ошибку: ' + error_text))
 
     return processed_errors
 
 
-def get_transport_transaction_filenames(current: str = UTM_LOG_NAME) -> Tuple[str]:
+def get_transport_transaction_filenames(current: str = AppConfig.UTM_LOG_NAME) -> Tuple[str]:
     """ Список файлов журналов за последние 2 дня"""
     # todo: при штатном запуске не существует, может понадобится при пропущенном запуске
     # yesterday = f'{current}.{(datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")}'
@@ -178,11 +148,11 @@ def send_email(subject: str, text: str, mail_from: str = 'balega_aa@remi.ru', ma
     msg['To'] = mail_to
 
     try:
-        with smtplib.SMTP(MAIL_HOST) as server:
-            server.login(MAIL_USER, MAIL_PASS)
+        with smtplib.SMTP(AppConfig.MAIL_HOST) as server:
+            server.login(AppConfig.MAIL_USER, AppConfig.MAIL_PASS)
             server.sendmail(msg['From'], msg['To'], msg.as_string())
     except:
-        logging.error(f'Ошибка отправки email {MAIL_USER}@{MAIL_HOST}:{MAIL_PASS}')
+        logging.error(f'Ошибка отправки email {AppConfig.MAIL_USER}@{AppConfig.MAIL_HOST}:{AppConfig.MAIL_PASS}')
 
 
 def process_transport_transaction_log(u: Utm, file: str):
@@ -195,18 +165,22 @@ def process_transport_transaction_log(u: Utm, file: str):
         errors_objects = parse_errors(errors_found, u)
 
         err_to_mail = []
-        for e in errors_objects:
-            if not db.mark_errors.find_one({'date': e.date, 'fsrar': u.fsrar}):
-                db.mark_errors.insert_one(vars(e))
-                err_to_mail.append(e)
-                logging.info(f'Добавлена {u.fsrar} {e.error} {e.mark}')
+        with MongoClient(AppConfig.MONGO_CONN) as client:
+            db = client[AppConfig.MONGO_DB]
+
+            for e in errors_objects:
+
+                if not db.mark_errors.find_one({'date': e.date, 'fsrar': u.fsrar}):
+                    db.mark_errors.insert_one(vars(e))
+                    err_to_mail.append(e)
+                    logging.info(f'Добавлена {u.fsrar} {e.error} {e.mark}')
 
         if err_to_mail:
             human_date = '%Y.%m.%d %H:%M'
             message = '\n\n'.join([f'{e.date.strftime(human_date)} Ошибка "{e.error}"\n{e.mark}' for e in err_to_mail])
             message = f'{u.title} {u.fsrar} {u.host}\n При проверке были найдены следующие ошибки:\n\n' + message
             subj = f'Ошибка УТМ {u.title} {datetime.today().strftime("%Y.%m.%d")}'
-            send_email(subj, message, MAIL_FROM, MAIL_TO)
+            send_email(subj, message, AppConfig.MAIL_FROM, AppConfig.MAIL_TO)
             logging.info(f'Отправлено сообщение об {len(err_to_mail)} ошибках')
 
 
@@ -217,9 +191,14 @@ def process_utm(u: Utm, filenames: Tuple[str]):
 
 
 def main():
+    with MongoClient(AppConfig.MONGO_CONN) as client:
+        db = client[AppConfig.MONGO_DB]
+        cfg = Configs(db)
+        utms = cfg.utms
+
     start = datetime.now()
     transport_transactions_files = get_transport_transaction_filenames()
-    [process_utm(u, transport_transactions_files) for u in get_utm_list()]
+    [process_utm(u, transport_transactions_files) for u in utms]
     logging.info(f'Done: {datetime.now() - start}')
 
 

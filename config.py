@@ -36,3 +36,6 @@ class AppConfig(object):
 
     MONGO_CONN = os.environ.get('MONGODB_CONN', 'localhost:27017')
     MONGO_DB = os.environ.get('MONGO_DB', 'tepmdb')
+    MONGO_COL_ERR = os.environ.get('MONGO_COL_ERR', 'mark_errors')
+    MONGO_COL_UTM = os.environ.get('MONGO_COL_UTM', 'utm')
+    MONGO_COL_RES = os.environ.get('MONGO_COL_RES', 'results')

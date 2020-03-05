@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}
+        <p class=error><strong>Error:</strong> {{ error }}{% endif %}
+
+{% if results %}
+    <h2>Точек с неотправленными XML: {{ total }}</h2>
+    {% for utm, files in results.items() %}
+        <div>
+            <h3>{{ utm }}</h3>
+            {% for type, files in files.items() %}
+                <h5> {{ type }} </h5>
+                {% for file in files %}
+                <p><code>{{ file }}</code></p>
+                {% endfor %}
+            {% endfor %}
+            </div>
+        <hr>
+    {% endfor %}
+{% endif %}
+{% endblock %}

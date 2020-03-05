@@ -1,5 +1,6 @@
 import copy
 import csv
+import glob
 import logging
 import os
 import re
@@ -1239,6 +1240,39 @@ def status_check():
     ordering = request.form.get('ordering', 'title')
     results.sort(key=lambda result: result[ordering])
     params['results'] = results
+
+    return render_template(**params)
+
+
+@app.route('/postman', methods=['GET'])
+def postman_check():
+    """ Проверка невыгруженных в обмен XML
+    """
+    params = {
+        'title': 'Проверка обмена Супермаг STORGCO',
+        'template_name_or_list': 'postman.html',
+        'description': 'Файлы XML необработанные почтовым модулем',
+        'refresh': 60,
+    }
+
+    results = dict()
+    subs = ['in', 'out']
+    store = DEFAULT_XML_PATH
+    mask = f'{datetime.now().strftime("%y%m%d")}*.xml'
+
+    for entry in os.listdir(store):
+        print(entry)
+        path = store + entry
+        print(path)
+        if os.path.isdir(path):
+            result = {act: [file.split('\\')[-1] for file in glob.glob(f'{path}/{act}/{mask}')] for act in subs
+                      if glob.glob(f'{path}/{act}/{mask}')}
+            if result:
+                results[entry] = result
+            print(results)
+
+    params['results'] = results
+    params['total'] = len(results)
 
     return render_template(**params)
 

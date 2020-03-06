@@ -1,6 +1,5 @@
 import copy
 import csv
-import glob
 import logging
 import os
 import re
@@ -18,7 +17,7 @@ from bson.son import SON
 from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 from pymongo.database import Database
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
@@ -1252,27 +1251,20 @@ def postman_check():
         'title': 'Проверка обмена Супермаг STORGCO',
         'template_name_or_list': 'postman.html',
         'description': 'Файлы XML необработанные почтовым модулем',
-        'refresh': 60,
     }
 
-    results = dict()
-    subs = ['in', 'out']
-    store = DEFAULT_XML_PATH
-    mask = f'{datetime.now().strftime("%y%m%d")}*.xml'
+    with MongoClient(mongo_conn) as cl:
+        col = cl['tempdb']['queue']
 
-    for entry in os.listdir(store):
-        print(entry)
-        path = store + entry
-        print(path)
-        if os.path.isdir(path):
-            result = {act: [file.split('\\')[-1] for file in glob.glob(f'{path}/{act}/{mask}')] for act in subs
-                      if glob.glob(f'{path}/{act}/{mask}')}
-            if result:
-                results[entry] = result
-            print(results)
+        try:
+            results = col.find_one({}, sort=[('_id', DESCENDING)])
+            if results:
+                params['results'] = results['files']
+                params['total'] = results['total']
+                params['date'] = results['date']
 
-    params['results'] = results
-    params['total'] = len(results)
+        except Exception as e:
+            logging.error(f'PostMan: не удалось получить результаты: {e}')
 
     return render_template(**params)
 

@@ -2,11 +2,24 @@
     <div class="container">
         <div class="navbar-collapse collapse">
             <ul class="nav navbar-nav">
-                <li><a href="{{ url_for('status') }}" title="Результат последней проверки">Статус УТМ</a></li>
-                <li><a href="{{ url_for('status_check') }}" title="Опрос всех УТМ">Проверка УТМ</a></li>
-                <li><a href="{{ url_for('get_utm_errors') }}" title="За сегодня">Ошибки</a></li>
-                <li><a href="{{ url_for('view_errors') }}" title="Все время, статистика">История ошибок</a></li>
-                <li><a href="{{ url_for('check_mark') }}" title="Проверка в УТМ">Проверка марки</a></li>
+
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true"
+                       aria-expanded="false">Статус<span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li class="dropdown-header">Статус УТМ</li>
+                        <li><a href="{{ url_for('status') }}" title="Результат последней проверки">Статус</a></li>
+                        <li><a href="{{ url_for('status_check') }}" title="Опрос всех УТМ">Проверить вручную</a></li>
+                        <li role="separator" class="divider"></li>
+                        <li class="dropdown-header">Ошибки чеков</li>
+                        <li><a href="{{ url_for('get_utm_errors') }}" title="За сегодня">Текущие</a></li>
+                        <li><a href="{{ url_for('view_errors') }}" title="За все время">Статистика ошибок</a></li>
+                        <li role="separator" class="divider"></li>
+                        <li><a href="{{ url_for('postman_check') }}" title="Необработанные ">Очередь обмена</a>
+                        </li>
+                    </ul>
+                </li>
 
                 <li class="dropdown">
                     <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true"
@@ -14,18 +27,26 @@
                     <ul class="dropdown-menu">
                         <li><a href="{{ url_for('ttn') }}">Повторно Запросить TTN</a></li>
                         <li><a href="{{ url_for('reject') }}">Отклонить TTN</a></li>
-                        <li><a href="{{ url_for('request_repeal') }}">Запросить распроведение</a></li>
-                        <li><a href="{{ url_for('confirm_repeal') }}">Подтвердить распроведение TTN</a></li>
+                        <li role="separator" class="divider"></li>
                         <li><a href="{{ url_for('check_nattn') }}">Необработанные TTN</a></li>
+                        <li role="separator" class="divider"></li>
+                        <li class="dropdown-header">Распроведение</li>
+                        <li><a href="{{ url_for('request_repeal') }}">Запросить</a></li>
+                        <li><a href="{{ url_for('confirm_repeal') }}">Подтвердить</a></li>
+
                     </ul>
                 </li>
 
                 <li><a href="{{ url_for('cheque') }}">Чек</a></li>
                 <li><a href="{{ url_for('get_tickets') }}" title="Проверка квитанций (tickets) обмена">Тикеты</a></li>
                 <li><a href="{{ url_for('get_rests') }}" title="Сводка остатков по последним запросам">Остатки</a></li>
+                <li><a href="{{ url_for('check_mark') }}" title="Запрос состояния">Марка</a></li>
+            </ul>
+
+            <ul class="nav navbar-nav navbar-right">
                 <li><a href="{{ url_for('service_clean') }}" title="Удаление TTNFORMREG справок">Очистка</a></li>
                 <li><a href="{{ url_for('add_utm') }}" title="Добавление или изменение">Добавить УТМ</a></li>
-
+            </ul>
         </div><!--/.nav-collapse -->
     </div>
 </div>

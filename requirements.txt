@@ -8,3 +8,4 @@ requests
 pycurl
 pymongo
 mysqlclient
+python-dotenv

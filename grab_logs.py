@@ -7,10 +7,13 @@ from email.header import Header
 from email.mime.text import MIMEText
 from typing import Optional, Tuple
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
 from app import Utm, Configs
 from config import AppConfig
+
+load_dotenv()
 
 logging.basicConfig(filename='mark.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 

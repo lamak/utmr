@@ -14,10 +14,11 @@ import openpyxl
 import requests
 import xmltodict
 from bson.son import SON
+from dotenv import load_dotenv
 from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 from pymongo.database import Database
 from weblib.error import DataNotFound
 from werkzeug.utils import secure_filename
@@ -25,10 +26,11 @@ from werkzeug.utils import secure_filename
 from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
     MarkForm, ChequeForm, WBRepealConfirmForm, RequestRepealForm, TTNForm
 
+load_dotenv()
+
 app = Flask(__name__)
 app.secret_key = 'dev'
 app.config.from_object('config.AppConfig')
-
 
 class Utm:
     """ УТМ
@@ -1200,6 +1202,32 @@ def status_check():
     ordering = request.form.get('ordering', 'title')
     results.sort(key=lambda result: result[ordering])
     params['results'] = results
+
+    return render_template(**params)
+
+
+@app.route('/postman', methods=['GET'])
+def postman_check():
+    """ Проверка невыгруженных в обмен XML
+    """
+    params = {
+        'title': 'Проверка обмена Супермаг STORGCO',
+        'template_name_or_list': 'postman.html',
+        'description': 'Файлы XML необработанные почтовым модулем',
+    }
+
+    with MongoClient(mongo_conn) as cl:
+        col = cl['tempdb']['queue']
+
+        try:
+            results = col.find_one({}, sort=[('_id', DESCENDING)])
+            if results:
+                params['results'] = results['files']
+                params['total'] = results['total']
+                params['date'] = results['date']
+
+        except Exception as e:
+            logging.error(f'PostMan: не удалось получить результаты: {e}')
 
     return render_template(**params)
 

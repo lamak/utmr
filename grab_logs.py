@@ -7,7 +7,10 @@ from email.header import Header
 from email.mime.text import MIMEText
 from typing import Optional, Tuple
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
+
+load_dotenv()
 
 # UTM LOG
 UTM_LOG_PATH = os.environ.get('UTM_LOG_PATH', 'c$/utm/transporter/l/')
@@ -146,7 +149,8 @@ def parse_errors(errors: list, utm: Utm):
                     processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, description, mark))
 
         except ValueError:
-            processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, 'Не удалось обработать ошибку: ' + error_text))
+            processed_errors.append(
+                MarkErrors(error_time, utm.title, utm.fsrar, 'Не удалось обработать ошибку: ' + error_text))
 
     return processed_errors
 

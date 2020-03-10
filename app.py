@@ -14,6 +14,7 @@ import openpyxl
 import requests
 import xmltodict
 from bson.son import SON
+from dotenv import load_dotenv
 from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
@@ -24,6 +25,8 @@ from werkzeug.utils import secure_filename
 
 from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
     MarkForm, ChequeForm, WBRepealConfirmForm, RequestRepealForm, TTNForm
+
+load_dotenv()
 
 LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
 UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
@@ -68,7 +71,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
-app.secret_key = 'dev'
+app.secret_key = os.environ.get('FLASK_KEY', 'dev')
 
 
 def create_folder(dirname: str):

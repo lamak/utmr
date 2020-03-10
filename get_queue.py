@@ -3,6 +3,7 @@ from glob import glob
 from os import listdir, path, environ
 from time import sleep
 
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
 
@@ -32,6 +33,7 @@ def process_res(xml_path):
 
 
 def main():
+    load_dotenv()
     mongo_conn = environ.get('MONGODB_CONN', 'localhost:27017')
     xml_path = environ.get('DEFAULT_XML_PATH', 'egais-exch/')
     with MongoClient(mongo_conn) as cl:

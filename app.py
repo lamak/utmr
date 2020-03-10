@@ -1,5 +1,6 @@
 import copy
 import csv
+import inspect
 import logging
 import os
 import re
@@ -9,7 +10,6 @@ from datetime import date, datetime, timedelta
 from typing import Optional, List
 
 import MySQLdb
-import MySQLdb.cursors as cursors
 import openpyxl
 import requests
 import xmltodict
@@ -28,60 +28,9 @@ from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm,
 
 load_dotenv()
 
-LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
-UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
-RESULT_FOLDER = os.environ.get('RESULT_FOLDER', 'results')
-
-UTM_PORT = os.environ.get('UTM_PORT', '8080')
-UTM_CONFIG = os.environ.get('UTM_CONFIG', 'config')
-UTM_LOG_PATH = os.environ.get('UTM_PORT', 'c$/utm/transporter/l/')
-DEFAULT_XML_PATH = os.environ.get('DEFAULT_XML_PATH')
-
-CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH', './')
-CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE', 'sku-body-template.xlsx')
-
-CONVERTER_DATE_FORMAT = '%Y%m%d'
-LOGFILE_DATE_FORMAT = '%Y_%m_%d'
-HUMAN_DATE_FORMAT = '%Y-%m-%d'
-ALLOWED_EXTENSIONS = {'xlsx', }
-WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
-
-MARK_ERRORS_LAST_DAYS = int(os.environ.get('MARK_ERRORS_LAST_DAYS', 7))
-MARK_ERRORS_LAST_UTMS = int(os.environ.get('MARK_ERRORS_LAST_UTMS', 15))
-
-# MySQL config for UKM
-mysql_config = {
-    'db': os.environ.get('UKM_DB'),
-    'user': os.environ.get('UKM_USER'),
-    'passwd': os.environ.get('UKM_PASSWD'),
-    'cursorclass': cursors.DictCursor,
-    'charset': 'utf8',
-    'use_unicode': True,
-}
-
-# Mongo Setup
-mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
-client = MongoClient(mongo_conn)
-mongodb = client.tempdb
-
-logging.basicConfig(
-    filename='app.log',
-    level=logging.WARNING,
-    format='%(asctime)s %(levelname)s: %(message)s'
-)
-
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_KEY', 'dev')
-
-
-def create_folder(dirname: str):
-    if not os.path.isdir(dirname):
-        os.mkdir(dirname)
-
-
-for f in WORKING_DIRS:
-    create_folder(f)
-
+app.secret_key = 'dev'
+app.config.from_object('config.AppConfig')
 
 class Utm:
     """ УТМ
@@ -92,7 +41,7 @@ class Utm:
         self.fsrar = fsrar
         self.host = host
         self.title = title
-        self.path = path or f'{DEFAULT_XML_PATH}{host.split("-")[0]}/in/'
+        self.path = path or f'{app.config["DEFAULT_XML_PATH"]}{host.split("-")[0]}/in/'
         self.ukm = ukm
         self.active: bool = bool(active)
 
@@ -103,10 +52,10 @@ class Utm:
         return f'{self.fsrar} {self.title}'
 
     def url(self):
-        return f'http://{self.host}.{LOCAL_DOMAIN}:{UTM_PORT}'
+        return f'http://{self.host}.{app.config["LOCAL_DOMAIN"]}:{app.config["UTM_PORT"]}'
 
     def ukm_host(self):
-        return f'{self.ukm}.{LOCAL_DOMAIN}'
+        return f'{self.ukm}.{app.config["LOCAL_DOMAIN"]}'
 
     def build_url(self):
         return self.url() + '/?b'
@@ -127,7 +76,7 @@ class Utm:
         return self.url() + '/xml'
 
     def log_dir(self):
-        return f'//{self.host}.{LOCAL_DOMAIN}/{UTM_LOG_PATH}'
+        return f'//{self.host}.{app.config["LOCAL_DOMAIN"]}/{app.config["UTM_LOG_PATH"]}'
 
     def to_csv(self):
         return ';'.join(vars(self).values()) + '\n'
@@ -177,9 +126,6 @@ class Result:
         tmp_dict['last'] = True
         del tmp_dict['utm']
         return tmp_dict
-
-    def to_db(self, db):
-        db.results.insert_one(self.to_dictionary())
 
 
 class Configs:
@@ -254,17 +200,22 @@ class Configs:
     def create_update_config_utm(self, utm: Utm):
         """ Создание или обновление конфиг файла """
         if os.path.isfile(self.config):
-            with open(self.config, 'r') as f:
-                lines = f.read().splitlines()
+            with open(self.config, 'r') as file:
+                lines = file.read().splitlines()
 
-            with open(self.config, 'w') as f:
-                for l in lines:
-                    if l.split(';')[0] != utm.fsrar:
-                        f.write(l + '\n')
-                f.write(utm.to_csv())
+            with open(self.config, 'w') as file:
+                for line in lines:
+                    if line.split(';')[0] != utm.fsrar:
+                        file.write(line + '\n')
+                file.write(utm.to_csv())
         else:
-            with open(self.config, 'w') as f:
-                f.write(utm.to_csv())
+            with open(self.config, 'w') as file:
+                file.write(utm.to_csv())
+
+
+def create_folder(dirname: str):
+    if not os.path.isdir(dirname):
+        os.mkdir(dirname)
 
 
 def remove_id(dictionary):
@@ -274,16 +225,8 @@ def remove_id(dictionary):
     return tmp_dict
 
 
-def create_utm_from_request_form(form) -> Utm:
-    """ Создание Utm инстанса из формы запроса"""
-    import inspect
-    signature = inspect.signature(Utm.__init__)
-    args = signature.parameters.keys()
-    return Utm(**{parameter: form.get(parameter) for parameter in form if parameter in args})
-
-
 def validate_filename(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 
 def get_xml_template(filename: str) -> str:
@@ -415,7 +358,7 @@ def create_unique_xml(fsrar: str, content: str, path: str) -> str:
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0][0][1].text = content
-    path = os.path.join(RESULT_FOLDER, f'TTNQuery_{uuid.uuid4()}.xml')
+    path = os.path.join(app.config['RESULT_FOLDER'], f'TTNQuery_{uuid.uuid4()}.xml')
     tree.write(path)
     return path
 
@@ -425,7 +368,7 @@ def create_unique_mark_xml(fsrar: str, mark: str, path: str) -> str:
     root = tree.getroot()
     root[0][0].text = fsrar
     root[1][0][0].text = mark
-    path = os.path.join(RESULT_FOLDER, f'QueryFilter_{uuid.uuid4()}.xml')
+    path = os.path.join(app.config['RESULT_FOLDER'], f'QueryFilter_{uuid.uuid4()}.xml')
     tree.write(path)
     return path
 
@@ -486,10 +429,8 @@ def parse_reply_nattn(url: str):
     if url is not None:
         try:
             response = requests.get(url)
-        except requests.exceptions.RequestException as e:
-            flash('Ошибка получения списка ReplyNoAnswerTTN', url)
-        try:
             tree = ET.fromstring(response.text)
+
             for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}WbRegID'):
                 ttn_list.append(elem.text)
             for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}ttnDate'):
@@ -498,6 +439,9 @@ def parse_reply_nattn(url: str):
                 doc_list.append(elem.text)
             for i, ttn in enumerate(ttn_list):
                 nattn_list.append([ttn_list[i], date_list[i], doc_list[i]])
+        except requests.exceptions.RequestException as e:
+            flash('Ошибка получения списка ReplyNoAnswerTTN', url)
+
         except Exception as e:
             flash(f'Ошибка обработки XML {e}', url)
     return nattn_list
@@ -505,9 +449,11 @@ def parse_reply_nattn(url: str):
 
 def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
     """ Выполнение запроса к MySQL """
-    mysql_config['host'] = ukm_hostname
 
     try:
+        mysql_config = app.config['MYSQL_CONN']
+        mysql_config['host'] = ukm_hostname
+
         connection = MySQLdb.connect(**mysql_config)
         with connection.cursor() as cursor:
             cursor.execute(query)
@@ -515,7 +461,7 @@ def get_mysql_data(ukm_hostname: str, query: str) -> Optional[list]:
 
         connection.close()
 
-    except (MySQLdb._exceptions.OperationalError, TypeError) as e:
+    except (MySQLdb.OperationalError, TypeError) as e:
         logging.error(e)
         data = None
 
@@ -664,7 +610,7 @@ def reject():
         root[1][0][0][0].text = 'Rejected'
         root[1][0][0][2].text = str(date.today())
         root[1][0][0][3].text = wbregid
-        filepath = os.path.join(RESULT_FOLDER, f'TTNReject_{uuid.uuid4()}.xml')
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'TTNReject_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (file, open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
@@ -716,7 +662,7 @@ def request_repeal():
         root[1][0][0].text = utm.fsrar
         root[1][0][2].text = request_date
         root[1][0][3].text = wbregid
-        filepath = os.path.join(RESULT_FOLDER, f'{repeal_type}Repeal_{uuid.uuid4()}.xml')
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'{repeal_type}Repeal_{uuid.uuid4()}.xml')
         tree.write(filepath)
         files = {'xml_file': (repeal_data['file'], open(filepath, 'rb'), 'application/xml')}
         err = send_xml(url, files)
@@ -758,7 +704,7 @@ def confirm_repeal():
         root[1][0][0][2].text = request_date
         root[1][0][0][3].text = wbregid
         root[1][0][0][4].text = is_confirm
-        filepath = os.path.join(RESULT_FOLDER, f'WBrepealConfirm_{uuid.uuid4()}.xml')
+        filepath = os.path.join(app.config['RESULT_FOLDER'], f'WBrepealConfirm_{uuid.uuid4()}.xml')
 
         tree.write(filepath)
 
@@ -953,7 +899,7 @@ def get_utm_errors():
         results = dict()
 
         log_name = 'transport_transaction.log'
-        params['date'] = datetime.now().strftime(HUMAN_DATE_FORMAT)
+        params['date'] = datetime.now().strftime(app.config['HUMAN_DATE_FORMAT'])
         form.fsrar.data = request.form['fsrar']
 
         all_utm = request.form.get('all', False)
@@ -1081,11 +1027,11 @@ def upload_file():
 
         if file:
             filename = f'{uuid.uuid4()}_{secure_filename(file.filename)}'
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             errors = list()
 
-            export_date = datetime.strftime(datetime.now() - timedelta(1), CONVERTER_DATE_FORMAT)
+            export_date = datetime.strftime(datetime.now() - timedelta(1), app.config['CONVERTER_DATE_FORMAT'])
 
             def insert_or_append(d: dict, k: str, v: str):
                 if d.get(k):
@@ -1120,7 +1066,7 @@ def upload_file():
                 if imp:
                     for warehouse in imp.keys():
                         exp_filename = f'skubody_{warehouse}_{export_date}.csv'
-                        exp_filepath = os.path.join(CONVERTER_EXPORT_PATH, exp_filename)
+                        exp_filepath = os.path.join(app.config['CONVERTER_EXPORT_PATH'], exp_filename)
                         if os.path.isfile(exp_filepath):
                             with open(exp_filepath, 'r', encoding='utf-8') as f:
                                 csv_data = csv.reader(f, delimiter='¦')
@@ -1149,12 +1095,12 @@ def upload_file():
                 result = ''
                 if fin:
                     current_row = 7  # first row after header
-                    wb = openpyxl.load_workbook(get_xml_template(CONVERTER_TEMPLATE_FILE))
+                    wb = openpyxl.load_workbook(get_xml_template(app.config['CONVERTER_TEMPLATE_FILE']))
                     sh = wb.get_active_sheet()
-                    today = datetime.now().strftime(CONVERTER_DATE_FORMAT)
+                    today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
 
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
-                    result_path = os.path.join(RESULT_FOLDER, result)
+                    result_path = os.path.join(app.config['RESULT_FOLDER'], result)
 
                     for wh, articles in fin.items():
                         idx = 0
@@ -1187,11 +1133,17 @@ def upload_file():
 
 @app.route('/results/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(RESULT_FOLDER, filename)
+    return send_from_directory(app.config['RESULT_FOLDER'], filename)
 
 
 @app.route('/add_utm', methods=['GET', 'POST'])
 def add_utm():
+    def create_utm_from_request_form(request_form) -> Utm:
+        """ Создание Utm инстанса из формы запроса"""
+        signature = inspect.signature(Utm.__init__)
+        args = signature.parameters.keys()
+        return Utm(**{parameter: request_form.get(parameter) for parameter in request_form if parameter in args})
+
     form = CreateUpdateUtm()
     params = {
         'template_name_or_list': 'add_utm.html',
@@ -1219,8 +1171,13 @@ def status():
         'form': form,
     }
     try:
-        results = list(mongodb.results.find({'last': True}).sort(request.args.get('ordering', default), 1))
+        with MongoClient(app.config['MONGO_CONN']) as client:
+            db = client[app.config['MONGO_DB']]
+            col = db[app.config['MONGO_COL_RES']]
+
+            results = list(col.find({'last': True}).sort(request.args.get('ordering', default), 1))
         params['results'] = results
+
     except Exception as e:
         err = f'Не удалось получить результаты проверки: {e}'
         flash(f'{e} Выполните полную проверку')
@@ -1238,7 +1195,10 @@ def status_check():
         'form': StatusSelectOrder(),
     }
 
-    results = grab_utm_check_results_to_db(cfg.utms, mongodb)
+    with MongoClient(app.config['MONGO_CONN']) as client:
+        db = client[app.config['MONGO_DB']]
+        results = grab_utm_check_results_to_db(cfg.utms, db)
+
     ordering = request.form.get('ordering', 'title')
     results.sort(key=lambda result: result[ordering])
     params['results'] = results
@@ -1309,12 +1269,13 @@ def view_errors():
         """ ИД для динамических полей выбора, у которых нет естественных идентификаторов """
         return hash(title) % 256
 
+    last_days = app.config['MARK_ERRORS_LAST_DAYS']
+    last_utms = app.config['MARK_ERRORS_LAST_UTMS']
+
     form = MarkFormError()
     form.fsrar.choices = cfg.utm_choices()
     add_default_choice(form.fsrar.choices)
     form.fsrar.data = int(request.args.get('fsrar', 0))
-    last_days = MARK_ERRORS_LAST_DAYS
-    last_utms = MARK_ERRORS_LAST_UTMS
     week_ago = datetime.now() - timedelta(days=last_days)
 
     params = {
@@ -1325,26 +1286,30 @@ def view_errors():
     }
 
     try:
-        # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
-        errors_types = list(mongodb.mark_errors.aggregate(pipeline_group_by('error', week_ago)))
-        # Собираем выпадайку с вариантами, добавляем туда пустой элемент
-        choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
-        form.error.choices = add_default_choice(choices_list)
+        with MongoClient(app.config['MONGO_CONN']) as client:
+            db = client[app.config['MONGO_DB']]
+            col = db[app.config['MONGO_COL_ERR']]
 
-        params['error_type_total'] = errors_types
-        params['fsrar_total'] = mongodb.mark_errors.aggregate(pipeline_group_by('title', week_ago, last_utms))
+            # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
+            errors_types = list(col.aggregate(pipeline_group_by('error', week_ago)))
+            # Собираем выпадайку с вариантами, добавляем туда пустой элемент
+            choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
+            form.error.choices = add_default_choice(choices_list)
 
-        if request.args:
-            # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
-            pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
-            error_arg = request.args.get('error')
-            # Т.к. ошибки у нас динамические, берем из словаря по ИД
-            if validate_arg(error_arg):
-                form.error.data = int(request.args.get('error', 0))
-                choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
-                pipeline_mark['error'] = choices_dict.get(int(error_arg))
+            params['error_type_total'] = errors_types
+            params['fsrar_total'] = col.aggregate(pipeline_group_by('title', week_ago, last_utms))
 
-            params['results'] = mongodb.mark_errors.find(pipeline_mark).sort([('title', 1), ('date', -1)])
+            if request.args:
+                # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
+                pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
+                error_arg = request.args.get('error')
+                # Т.к. ошибки у нас динамические, берем из словаря по ИД
+                if validate_arg(error_arg):
+                    form.error.data = int(request.args.get('error', 0))
+                    choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
+                    pipeline_mark['error'] = choices_dict.get(int(error_arg))
+
+                params['results'] = col.find(pipeline_mark).sort([('title', 1), ('date', -1)])
 
     except Exception as e:
         err = f'Недоступна БД {e}'
@@ -1354,4 +1319,15 @@ def view_errors():
     return render_template(**params)
 
 
-cfg = Configs(mongodb)
+logging.basicConfig(
+    filename='app.log',
+    level=logging.WARNING,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
+
+with MongoClient(app.config['MONGO_CONN']) as client:
+    db = client[app.config['MONGO_DB']]
+    cfg = Configs(db)
+
+for file in app.config.get('WORKING_DIRS', ()):
+    create_folder(file)

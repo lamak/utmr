@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from time import sleep
 
 from dotenv import load_dotenv
@@ -9,11 +10,12 @@ from app import Configs, grab_utm_check_results_to_db
 # Mongo Setup
 load_dotenv()
 mongo_conn = os.environ.get('MONGODB_CONN', 'localhost:27017')
-client = MongoClient(mongo_conn)
-mongodb = client.tempdb
-cfg = Configs(mongodb)
+database = os.environ.get('MONGO_DB', 'tempdb')
 
-while True:
-    results = grab_utm_check_results_to_db(cfg.utms, mongodb)
-    print(f'Записаны результы {len(results)}')
-    sleep(60)
+with MongoClient(mongo_conn) as client:
+    db = client[database]
+    cfg = Configs(db)
+    while True:
+        results = grab_utm_check_results_to_db(cfg.utms, db)
+        print(f'{datetime.now()} DONE: {len(results)}')
+        sleep(60)

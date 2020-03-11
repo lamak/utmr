@@ -893,7 +893,7 @@ def get_utm_errors():
         'form': form,
     }
     if request.method == 'POST':
-        from grab_logs import parse_log_for_errors, parse_errors
+        from get_logs import parse_log_for_errors, parse_errors
         results = dict()
 
         log_name = 'transport_transaction.log'

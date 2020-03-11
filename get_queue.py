@@ -1,13 +1,14 @@
 from datetime import datetime
 from glob import glob
-from os import listdir, path, environ
+from os import listdir, path
 from time import sleep
 
-from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from config import AppConfig
 
-def get_files_queue(storage: str):
+
+def get_files(storage: str):
     """ Необработанные файлы в обмене за сегодняший день
     """
     subs = ['in', 'out']
@@ -23,27 +24,24 @@ def get_files_queue(storage: str):
     return results
 
 
-def process_res(xml_path):
+def check_queue(xml_path: str):
     results = dict()
-    tmp = get_files_queue(xml_path)
-    results['files'] = tmp
-    results['total'] = len(tmp)
+    unprocessed_files = get_files(xml_path)
+    results['files'] = unprocessed_files
+    results['total'] = len(unprocessed_files)
     results['date'] = datetime.now()
     return results
 
 
 def main():
-    load_dotenv()
-    mongo_conn = environ.get('MONGODB_CONN', 'localhost:27017')
-    xml_path = environ.get('DEFAULT_XML_PATH', 'egais-exch/')
-    with MongoClient(mongo_conn) as cl:
-        col = cl['tempdb']['queue']
+    with MongoClient(AppConfig.MONGO_CONN) as cl:
+        col = cl[AppConfig.MONGO_DB][AppConfig.MONGO_COL_QUE]
 
         while True:
             try:
-                scan_queue = process_res(xml_path)
-                col.insert_one(scan_queue)
-                print(f'{scan_queue["date"]} DONE {scan_queue["total"]}')
+                result = check_queue(AppConfig.DEFAULT_XML_PATH)
+                col.insert_one(result)
+                print(f'{result["date"]} DONE {result["total"]}')
 
             except Exception as e:
                 print(f'PostMan: не удалось записать в БД: {e}')

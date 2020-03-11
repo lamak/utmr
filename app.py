@@ -14,7 +14,6 @@ import openpyxl
 import requests
 import xmltodict
 from bson.son import SON
-from dotenv import load_dotenv
 from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
@@ -26,11 +25,9 @@ from werkzeug.utils import secure_filename
 from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
     MarkForm, ChequeForm, WBRepealConfirmForm, RequestRepealForm, TTNForm
 
-load_dotenv()
-
 app = Flask(__name__)
-app.secret_key = 'dev'
 app.config.from_object('config.AppConfig')
+app.secret_key = app.config['FLASK_SECRET_KEY']
 
 
 class Utm:
@@ -130,10 +127,10 @@ class Result:
 
 
 class Configs:
-    def __init__(self, db):
-        self.use_db = bool(os.environ.get('UTMR_USE_DB', False))
-        self.config = os.environ.get('UTM_CONFIG', 'config')
-        self.db = db
+    def __init__(self, database: Optional[Database]):
+        self.use_db = bool(app.config['UTM_USE_DB'])
+        self.config = app.config['UTM_CONFIG']
+        self.db = database
         self.all_utms = self.get_utm_list()
         self.utms = [utm for utm in self.all_utms if utm.active]
 
@@ -532,17 +529,17 @@ def process_errors(errors: list, full: bool, ukm: str):
     return current_results, len(current_marks)
 
 
-def grab_utm_check_results_to_db(utms: List[Utm], db: Database):
+def grab_utm_check_results_to_db(utms: List[Utm], col: Database):
     results: List[Result] = [parse_utm(utm) for utm in utms]
     results_to_dict = [res.to_dictionary() for res in results]
-    save_results_to_db(results_to_dict, db)
+    save_results_to_db(results_to_dict, col)
     return results_to_dict
 
 
-def save_results_to_db(results: List[dict], db: Database):
+def save_results_to_db(results: List[dict], col: Database):
     try:
-        db.results.update_many({}, {'$set': {'last': False}})
-        db.results.insert_many(results)
+        col.update_many({}, {'$set': {'last': False}})
+        col.insert_many(results)
 
     except Exception as e:
         logging.info(f"Не удалось записать результаты в БД: {e}")
@@ -1196,8 +1193,8 @@ def status_check():
     }
 
     with MongoClient(app.config['MONGO_CONN']) as client:
-        db = client[app.config['MONGO_DB']]
-        results = grab_utm_check_results_to_db(cfg.utms, db)
+        col = client[app.config['MONGO_DB']][app.config['MONGO_COL_RES']]
+        results = grab_utm_check_results_to_db(cfg.utms, col)
 
     ordering = request.form.get('ordering', 'title')
     results.sort(key=lambda result: result[ordering])
@@ -1216,8 +1213,8 @@ def postman_check():
         'description': 'Файлы XML необработанные почтовым модулем',
     }
 
-    with MongoClient(app.config['MONGO_CONN']) as cl:
-        col = cl[app.config['MONGO_DB']]['queue']
+    with MongoClient(app.config['MONGO_CONN']) as client:
+        col = client[app.config['MONGO_DB']][app.config['MONGO_COL_QUE']]
 
         try:
             results = col.find_one({}, sort=[('_id', DESCENDING)])
@@ -1320,12 +1317,12 @@ def view_errors():
 
 logging.basicConfig(
     filename='app.log',
-    level=logging.WARNING,
+    level=logging.INFO,
     format='%(asctime)s %(levelname)s: %(message)s'
 )
 
-with MongoClient(app.config['MONGO_CONN']) as client:
-    db = client[app.config['MONGO_DB']]
+with MongoClient(app.config['MONGO_CONN']) as cl:
+    db = cl[app.config['MONGO_DB']]
     cfg = Configs(db)
 
 for file in app.config.get('WORKING_DIRS', ()):

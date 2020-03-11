@@ -32,6 +32,7 @@ app = Flask(__name__)
 app.secret_key = 'dev'
 app.config.from_object('config.AppConfig')
 
+
 class Utm:
     """ УТМ
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
@@ -1172,8 +1173,7 @@ def status():
     }
     try:
         with MongoClient(app.config['MONGO_CONN']) as client:
-            db = client[app.config['MONGO_DB']]
-            col = db[app.config['MONGO_COL_RES']]
+            col = client[app.config['MONGO_DB']][app.config['MONGO_COL_RES']]
 
             results = list(col.find({'last': True}).sort(request.args.get('ordering', default), 1))
         params['results'] = results
@@ -1216,8 +1216,8 @@ def postman_check():
         'description': 'Файлы XML необработанные почтовым модулем',
     }
 
-    with MongoClient(mongo_conn) as cl:
-        col = cl['tempdb']['queue']
+    with MongoClient(app.config['MONGO_CONN']) as cl:
+        col = cl[app.config['MONGO_DB']]['queue']
 
         try:
             results = col.find_one({}, sort=[('_id', DESCENDING)])
@@ -1287,8 +1287,7 @@ def view_errors():
 
     try:
         with MongoClient(app.config['MONGO_CONN']) as client:
-            db = client[app.config['MONGO_DB']]
-            col = db[app.config['MONGO_COL_ERR']]
+            col = client[app.config['MONGO_DB']][app.config['MONGO_COL_ERR']]
 
             # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
             errors_types = list(col.aggregate(pipeline_group_by('error', week_ago)))

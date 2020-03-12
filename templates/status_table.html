@@ -52,7 +52,9 @@
                 {% if u['filter'] == True %}
                     <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
                 {% else %}
-                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING" title="Not OK">
+                    <a href="{{ url_for('status') }}?filter={{ u['fsrar'] }}{% if ord %}&ordering={{ ord }}">{% endif %}
+                    <img alt="Update" title="Обновить" src="{{ url_for('static', filename='warn24.png') }}">
+                    </a>
                 {% endif %}
             </td>
             <td>

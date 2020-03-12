@@ -1161,9 +1161,9 @@ def add_utm():
 
 @app.route('/status', methods=['GET', 'POST'])
 def status():
-    default = 'title'
+    default = request.args.get('ordering') or 'title'
     form = StatusSelectOrder()
-    form.ordering.date = default
+    form.ordering.data = default
 
     utm_to_filter = get_instance(request.args.get('filter'))
     if utm_to_filter is not None:
@@ -1177,6 +1177,7 @@ def status():
         'title': 'Статус (новый)',
         'description': 'Результат последней проверки УТМ, обновление каждую минуту',
         'refresh': 60,
+        'ord': default,
         'form': form,
     }
     try:

@@ -52,9 +52,10 @@
                 {% if u['filter'] == True %}
                     <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
                 {% else %}
-                    <a href="{{ url_for('status') }}?filter={{ u['fsrar'] }}{% if ord %}&ordering={{ ord }}">{% endif %}
-                    <img alt="Update" title="Обновить" src="{{ url_for('static', filename='warn24.png') }}">
-                    </a>
+                    <form action="" method="post" name="send" role="form">
+                        <input type="hidden" name="filter" value="{{ u['fsrar'] }}">
+                        <input type="image" src="{{ url_for('static', filename='warn24.png') }}" title="Обновить" alt="Обновить">
+                    </form>
                 {% endif %}
             </td>
             <td>

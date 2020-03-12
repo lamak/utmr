@@ -1165,7 +1165,7 @@ def status():
     form = StatusSelectOrder()
     form.ordering.data = default
 
-    utm_to_filter = get_instance(request.args.get('filter'))
+    utm_to_filter = get_instance(request.form.get('filter'))
     if utm_to_filter is not None:
         try:
             flash(requests.get(utm_to_filter.reset_filter_url()).text)

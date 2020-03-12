@@ -1041,7 +1041,7 @@ def upload_file():
                 results = dict()
                 try:
                     wb = openpyxl.load_workbook(filename)
-                    ws = wb.get_active_sheet()
+                    ws = wb.active
 
                     # validate worksheet header
                     if not (ws.cell(1, 2).value == 'SKU' and ws.cell(1, 5).value == 'Код склада'):
@@ -1094,7 +1094,7 @@ def upload_file():
                 if fin:
                     current_row = 7  # first row after header
                     wb = openpyxl.load_workbook(get_xml_template(app.config['CONVERTER_TEMPLATE_FILE']))
-                    sh = wb.get_active_sheet()
+                    sh = wb.active
                     today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
 
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'

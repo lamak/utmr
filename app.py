@@ -1165,10 +1165,10 @@ def status():
     form = StatusSelectOrder()
     form.ordering.data = default
 
-    utm_to_filter = get_instance(request.form.get('filter'))
-    if utm_to_filter is not None:
+    utm_filter = get_instance(request.form.get('filter'))
+    if utm_filter is not None:
         try:
-            flash(requests.get(utm_to_filter.reset_filter_url()).text)
+            flash(f"{utm_filter.title}[{utm_filter.fsrar}]: {requests.get(utm_filter.reset_filter_url()).text}")
         except (requests.ConnectionError, requests.ReadTimeout) as e:
             flash(f'Не удалось выполнить запрос обновления {e}, УТМ недоступен')
 

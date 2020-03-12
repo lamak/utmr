@@ -27,7 +27,7 @@ from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm,
 
 app = Flask(__name__)
 app.config.from_object('config.AppConfig')
-app.secret_key = app.config['FLASK_SECRET_KEY']
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 
 
 class Utm:
@@ -60,6 +60,9 @@ class Utm:
 
     def version_url(self):
         return self.url() + '/info/version'
+
+    def reset_filter_url(self) -> str:
+        return f'{self.url()}/xhr/filter/reset'
 
     def gost_url(self):
         return self.url() + '/info/certificate/GOST'
@@ -893,7 +896,7 @@ def get_utm_errors():
         'form': form,
     }
     if request.method == 'POST':
-        from grab_logs import parse_log_for_errors, parse_errors
+        from get_logs import parse_log_for_errors, parse_errors
         results = dict()
 
         log_name = 'transport_transaction.log'
@@ -1041,7 +1044,7 @@ def upload_file():
                 results = dict()
                 try:
                     wb = openpyxl.load_workbook(filename)
-                    ws = wb.get_active_sheet()
+                    ws = wb.active
 
                     # validate worksheet header
                     if not (ws.cell(1, 2).value == 'SKU' and ws.cell(1, 5).value == 'Код склада'):
@@ -1094,7 +1097,7 @@ def upload_file():
                 if fin:
                     current_row = 7  # first row after header
                     wb = openpyxl.load_workbook(get_xml_template(app.config['CONVERTER_TEMPLATE_FILE']))
-                    sh = wb.get_active_sheet()
+                    sh = wb.active
                     today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
 
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
@@ -1158,14 +1161,23 @@ def add_utm():
 
 @app.route('/status', methods=['GET', 'POST'])
 def status():
-    default = 'title'
+    default = request.args.get('ordering') or 'title'
     form = StatusSelectOrder()
-    form.ordering.date = default
+    form.ordering.data = default
+
+    utm_filter = get_instance(request.form.get('filter'))
+    if utm_filter is not None:
+        try:
+            flash(f"{utm_filter.title}[{utm_filter.fsrar}]: {requests.get(utm_filter.reset_filter_url()).text}")
+        except (requests.ConnectionError, requests.ReadTimeout) as e:
+            flash(f'Не удалось выполнить запрос обновления {e}, УТМ недоступен')
+
     params = {
         'template_name_or_list': 'status.html',
         'title': 'Статус (новый)',
         'description': 'Результат последней проверки УТМ, обновление каждую минуту',
         'refresh': 60,
+        'ord': default,
         'form': form,
     }
     try:

@@ -61,6 +61,9 @@ class Utm:
     def version_url(self):
         return self.url() + '/info/version'
 
+    def reset_filter_url(self) -> str:
+        return f'{self.url()}/xhr/filter/reset'
+
     def gost_url(self):
         return self.url() + '/info/certificate/GOST'
 
@@ -1161,6 +1164,14 @@ def status():
     default = 'title'
     form = StatusSelectOrder()
     form.ordering.date = default
+
+    utm_to_filter = get_instance(request.args.get('filter'))
+    if utm_to_filter is not None:
+        try:
+            flash(requests.get(utm_to_filter.reset_filter_url()).text)
+        except (requests.ConnectionError, requests.ReadTimeout) as e:
+            flash(f'Не удалось выполнить запрос обновления {e}, УТМ недоступен')
+
     params = {
         'template_name_or_list': 'status.html',
         'title': 'Статус (новый)',

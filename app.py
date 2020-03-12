@@ -27,7 +27,7 @@ from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm,
 
 app = Flask(__name__)
 app.config.from_object('config.AppConfig')
-app.secret_key = app.config['FLASK_SECRET_KEY']
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 
 
 class Utm:

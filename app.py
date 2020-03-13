@@ -1241,6 +1241,14 @@ def postman_check():
     return render_template(**params)
 
 
+@app.route('/xml/', methods=['GET', 'POST'])
+def test_utm():
+    """ Тестовый УТМ для "подписи" чеков """
+    return '<?xml version="1.0" encoding="UTF-8" standalone="no"?><A>' \
+           '<url>http://check.egais.ru?id=b9ae79cf-b019-474d-a2da-eda7faa834b1&amp;dt=0101200000&amp;cn=010000123456</url>' \
+           '<sign>1F4F407419A4CFDDD8B8A359B9AE2CE9E793F4E5057BB924321923E5A2C2184BE6F61A77932A9EE365FFD40A181102C7474072E8D9058565B49D417220A2A2EA</sign><ver>2</ver></A>'
+
+
 @app.route('/view_errors', methods=['GET'])
 def view_errors():
     def add_default_choice(choices: list) -> list:

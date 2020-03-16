@@ -1,5 +1,4 @@
 import copy
-import csv
 import inspect
 import logging
 import os
@@ -736,7 +735,6 @@ def check_nattn():
         form.fsrar.data = utm.fsrar
         if 'check' in request.form:
             ttn_list = parse_reply_nattn(find_last_nattn(utm.url()))
-            print(ttn_list)
             if ttn_list is None:
                 flash('Нет запроса необработанных документов')
             elif not ttn_list:
@@ -1027,7 +1025,6 @@ def upload_file():
             flash('Выберите XLSX документ')
             return redirect(request.url)
 
-        print(datetime.now())
         if file:
             filename = f'{uuid.uuid4()}_{secure_filename(file.filename)}'
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -1049,7 +1046,7 @@ def upload_file():
                     df = pd.read_excel(
                         io=filename,
                         sheet_name='Sheet1',
-                        converters={'SKU': str, 'Код склада': str},
+                        converters={'SKU': str, 'Код склада': int},
                         usecols=['SKU', 'Код склада'],
                     )
                     results = df.groupby('Код склада')['SKU'].apply(list).to_dict()
@@ -1057,50 +1054,28 @@ def upload_file():
                 except Exception as e:
                     errors.append(f'Не удалось прочитать файл импорта {e}')
 
-                # try:
-                #     wb = openpyxl.load_workbook(filename)
-                #     ws = wb.active
-                #
-                #     # validate worksheet header
-                #     if not (ws.cell(1, 2).value == 'SKU' and ws.cell(1, 5).value == 'Код склада'):
-                #         errors.append('Не найдены заголовки таблицы')
-                #     else:
-                #         ws.delete_rows(1)
-                #         for r in ws.rows:
-                #             article = r[1].value
-                #             warehouse = r[4].value
-                #             insert_or_append(results, warehouse, article)
-                #
-                #     wb.close()
-
                 return results
 
             def collect_export_results(imp: dict) -> dict:
                 results = dict()
-                export_date = '20200311'
-                if imp:
-                    for warehouse in imp.keys():
-                        exp_filename = f'skubody_{warehouse}_{export_date}.csv'
-                        exp_filepath = os.path.join(app.config['CONVERTER_EXPORT_PATH'], exp_filename)
+                for warehouse in imp.keys():
+                    exp_filename = f'skubody_{warehouse}_{export_date}.csv'
+                    exp_filepath = os.path.join(app.config['CONVERTER_EXPORT_PATH'], exp_filename)
 
-                        if os.path.isfile(exp_filepath):
-                            warehouse_articles = pd.read_csv(
-                                filepath_or_buffer=exp_filepath,  #'remi_20200312_0430_313/skubody_127_20200311.csv',
-                                sep='¦',
-                                header=0,
-                                usecols=[0, ],
-                                squeeze=True,
-                                engine='python',
-                                converters={0: str}
-                            ).to_list()
-                            results[warehouse] = warehouse_articles
-                            # with open(exp_filepath, 'r', encoding='utf-8') as f:
-                            #     csv_data = csv.reader(f, delimiter='¦')
-                            #     for row in csv_data:
-                            #         article = row[0]
-                            #         insert_or_append(results, warehouse, article)
-                        else:
-                            errors.append(f'Место хранения {warehouse}: Файл {exp_filepath} недоступен')
+                    if os.path.isfile(exp_filepath):
+                        warehouse_articles = pd.read_csv(
+                            filepath_or_buffer=exp_filepath,
+                            sep='¦',
+                            header=0,
+                            usecols=[0, ],
+                            squeeze=True,
+                            engine='python',
+                            converters={0: str}
+                        ).to_list()
+                        results[warehouse] = warehouse_articles
+
+                    else:
+                        errors.append(f'Место хранения {warehouse}: Файл {exp_filepath} недоступен')
 
                 return results
 
@@ -1111,7 +1086,8 @@ def upload_file():
                         list_imp = articles
                         list_exp = exp.get(warehouse)
                         if list_exp is not None:
-                            results[warehouse] = set(list_imp).difference(set(list_exp))
+                            difference = set(list_imp).difference(set(list_exp))
+                            results[warehouse] = difference
                         else:
                             errors.append(f'Место хранения {warehouse} пропущено')
 
@@ -1120,45 +1096,26 @@ def upload_file():
             def write_down(fin: dict) -> str:
                 result = ''
                 if fin:
-                    current_row = 7  # first row after header
                     wb = openpyxl.load_workbook(get_xml_template(app.config['CONVERTER_TEMPLATE_FILE']))
                     sh = wb.active
-                    today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
+                    sh._current_row = 6  # header row, to append after
 
+                    today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
                     result_path = os.path.join(app.config['RESULT_FOLDER'], result)
 
                     for wh, articles in fin.items():
-                        idx = 0
-                        for idx, article in enumerate(articles):
-                            sh.cell(current_row + idx, 1).value = article
-                            sh.cell(current_row + idx, 2).value = wh
-                        current_row = current_row + idx
+                        for article in articles:
+                            sh.append((article, wh))
 
                     wb.save(result_path)
                 return result
 
-            print(f'before import 1 {datetime.now()}')
             import_results = collect_import_data(filepath)
-            print(f'after import 1 {datetime.now()}')
-            # print(f'import {import_results}')
-
-            print(f'before import 2 {datetime.now()}')
             export_results = collect_export_results(import_results)
-            print(f'after import  2 {datetime.now()}')
-            # print(f'export {export_results}')
-
-            print(f'before diff {datetime.now()}')
             finale_results = make_difference(import_results, export_results)
-            print(f'after diff {datetime.now()}')
-            # print(f'diff {finale_results}')
             result_filename = write_down(finale_results)
-            flash(
-                f'Места хранения:\n'
-                f'Импорта: {", ".join(import_results.keys())},\n'
-                f'Экспорта: {", ".join(export_results.keys())},\n'
-                f'Результат: {", ".join(finale_results.keys())}'
-            )
+
             if errors:
                 flash('\n'.join(errors))
 

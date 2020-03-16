@@ -1,5 +1,4 @@
 import copy
-import csv
 import inspect
 import logging
 import os
@@ -11,6 +10,7 @@ from typing import Optional, List
 
 import MySQLdb
 import openpyxl
+import pandas as pd
 import requests
 import xmltodict
 from bson.son import SON
@@ -735,7 +735,6 @@ def check_nattn():
         form.fsrar.data = utm.fsrar
         if 'check' in request.form:
             ttn_list = parse_reply_nattn(find_last_nattn(utm.url()))
-            print(ttn_list)
             if ttn_list is None:
                 flash('Нет запроса необработанных документов')
             elif not ttn_list:
@@ -1042,40 +1041,41 @@ def upload_file():
 
             def collect_import_data(filename: str) -> dict:
                 results = dict()
+
                 try:
-                    wb = openpyxl.load_workbook(filename)
-                    ws = wb.active
+                    df = pd.read_excel(
+                        io=filename,
+                        sheet_name='Sheet1',
+                        converters={'SKU': str, 'Код склада': int},
+                        usecols=['SKU', 'Код склада'],
+                    )
+                    results = df.groupby('Код склада')['SKU'].apply(list).to_dict()
 
-                    # validate worksheet header
-                    if not (ws.cell(1, 2).value == 'SKU' and ws.cell(1, 5).value == 'Код склада'):
-                        errors.append('Не найдены заголовки таблицы')
-                    else:
-                        ws.delete_rows(1)
-                        for r in ws.rows:
-                            article = r[1].value
-                            warehouse = r[4].value
-                            insert_or_append(results, warehouse, article)
-
-                    wb.close()
-                except openpyxl.utils.exceptions.InvalidFileException:
-                    errors.append('Не удалось прочитать файл импорта')
+                except Exception as e:
+                    errors.append(f'Не удалось прочитать файл импорта {e}')
 
                 return results
 
             def collect_export_results(imp: dict) -> dict:
                 results = dict()
-                if imp:
-                    for warehouse in imp.keys():
-                        exp_filename = f'skubody_{warehouse}_{export_date}.csv'
-                        exp_filepath = os.path.join(app.config['CONVERTER_EXPORT_PATH'], exp_filename)
-                        if os.path.isfile(exp_filepath):
-                            with open(exp_filepath, 'r', encoding='utf-8') as f:
-                                csv_data = csv.reader(f, delimiter='¦')
-                                for row in csv_data:
-                                    article = row[0]
-                                    insert_or_append(results, warehouse, article)
-                        else:
-                            errors.append(f'Место хранения {warehouse}: Файл {exp_filepath} недоступен')
+                for warehouse in imp.keys():
+                    exp_filename = f'skubody_{warehouse}_{export_date}.csv'
+                    exp_filepath = os.path.join(app.config['CONVERTER_EXPORT_PATH'], exp_filename)
+
+                    if os.path.isfile(exp_filepath):
+                        warehouse_articles = pd.read_csv(
+                            filepath_or_buffer=exp_filepath,
+                            sep='¦',
+                            header=0,
+                            usecols=[0, ],
+                            squeeze=True,
+                            engine='python',
+                            converters={0: str}
+                        ).to_list()
+                        results[warehouse] = warehouse_articles
+
+                    else:
+                        errors.append(f'Место хранения {warehouse}: Файл {exp_filepath} недоступен')
 
                 return results
 
@@ -1086,7 +1086,8 @@ def upload_file():
                         list_imp = articles
                         list_exp = exp.get(warehouse)
                         if list_exp is not None:
-                            results[warehouse] = set(list_imp).difference(set(list_exp))
+                            difference = set(list_imp).difference(set(list_exp))
+                            results[warehouse] = difference
                         else:
                             errors.append(f'Место хранения {warehouse} пропущено')
 
@@ -1111,21 +1112,10 @@ def upload_file():
                 return result
 
             import_results = collect_import_data(filepath)
-            print(datetime.now())
-            print(len(import_results), import_results.get('156'))
             export_results = collect_export_results(import_results)
-            print(datetime.now())
-            print(len(export_results), export_results.get('156'))
             finale_results = make_difference(import_results, export_results)
-            print(len(finale_results), finale_results.get('156'))
             result_filename = write_down(finale_results)
 
-            flash(
-                f'Места хранения:\n'
-                f'Импорта: {", ".join(import_results.keys())},\n'
-                f'Экспорта: {", ".join(export_results.keys())},\n'
-                f'Результат: {", ".join(finale_results.keys())}'
-            )
             if errors:
                 flash('\n'.join(errors))
 

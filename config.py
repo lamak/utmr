@@ -8,7 +8,6 @@ load_dotenv()
 
 class AppConfig(object):
     LOCAL_DOMAIN = os.environ.get('USERDNSDOMAIN', '.local')
-    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
     RESULT_FOLDER = os.environ.get('RESULT_FOLDER', 'results')
     UTM_USE_DB = os.environ.get('UTM_USE_DB', False)
     UTM_PORT = os.environ.get('UTM_PORT', '8080')
@@ -17,14 +16,8 @@ class AppConfig(object):
     UTM_LOG_NAME = os.environ.get('UTM_LOG_NAME', 'transport_transaction.log')
     DEFAULT_XML_PATH = os.environ.get('DEFAULT_XML_PATH')
 
-    CONVERTER_EXPORT_PATH = os.environ.get('CONVERTER_EXPORT_PATH', './')
-    CONVERTER_TEMPLATE_FILE = os.environ.get('CONVERTER_SKU_TEMPLATE', 'sku-body-template.xlsx')
-
-    CONVERTER_DATE_FORMAT = '%Y%m%d'
     LOGFILE_DATE_FORMAT = '%Y_%m_%d'
     HUMAN_DATE_FORMAT = '%Y-%m-%d'
-    ALLOWED_EXTENSIONS = {'xlsx', }
-    WORKING_DIRS = [UPLOAD_FOLDER, RESULT_FOLDER]
 
     MARK_ERRORS_LAST_DAYS = int(os.environ.get('MARK_ERRORS_LAST_DAYS', 7))
     MARK_ERRORS_LAST_UTMS = int(os.environ.get('MARK_ERRORS_LAST_UTMS', 15))

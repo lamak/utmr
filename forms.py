@@ -1,14 +1,10 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
+from wtforms import StringField, IntegerField, SelectField, BooleanField
 from wtforms.validators import DataRequired, Length, Regexp
 
 
 class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', coerce=int)
-
-
-class UploadForm(FlaskForm):
-    file = FileField()
 
 
 class RestsForm(FsrarForm):

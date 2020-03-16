@@ -1,11 +1,10 @@
-lxml
-xmltodict
-openpyxl
 Flask
 flask_wtf
 grab
-requests
 pycurl
+requests
+lxml
+xmltodict
 pymongo
 mysqlclient
 python-dotenv

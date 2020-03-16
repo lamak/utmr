@@ -1095,28 +1095,31 @@ def upload_file():
             def write_down(fin: dict) -> str:
                 result = ''
                 if fin:
-                    current_row = 7  # first row after header
                     wb = openpyxl.load_workbook(get_xml_template(app.config['CONVERTER_TEMPLATE_FILE']))
                     sh = wb.active
-                    today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
+                    sh._current_row = 6  # header row, to append after
 
+                    today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
                     result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
                     result_path = os.path.join(app.config['RESULT_FOLDER'], result)
 
                     for wh, articles in fin.items():
-                        idx = 0
-                        for idx, article in enumerate(articles):
-                            sh.cell(current_row + idx, 1).value = article
-                            sh.cell(current_row + idx, 2).value = wh
-                        current_row = current_row + idx
+                        for article in articles:
+                            sh.append((article, wh))
 
                     wb.save(result_path)
                 return result
 
             import_results = collect_import_data(filepath)
+            print(datetime.now())
+            print(len(import_results), import_results.get('156'))
             export_results = collect_export_results(import_results)
+            print(datetime.now())
+            print(len(export_results), export_results.get('156'))
             finale_results = make_difference(import_results, export_results)
+            print(len(finale_results), finale_results.get('156'))
             result_filename = write_down(finale_results)
+
             flash(
                 f'Места хранения:\n'
                 f'Импорта: {", ".join(import_results.keys())},\n'

@@ -1,12 +1,10 @@
-xmltodict
-openpyxl
 Flask
 flask_wtf
 grab
+pycurl
 requests
+xmltodict
 pymongo
 mysqlclient
 python-dotenv
-click
-pandas
 cx_oracle

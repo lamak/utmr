@@ -9,20 +9,17 @@ from datetime import date, datetime, timedelta
 from typing import Optional, List
 
 import MySQLdb
-import openpyxl
-import pandas as pd
 import requests
 import xmltodict
 from bson.son import SON
-from flask import Flask, Markup, flash, request, redirect, url_for, send_from_directory, render_template
+from flask import Flask, Markup, flash, request, redirect, url_for, render_template
 from grab import Grab
 from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
 from pymongo import MongoClient, DESCENDING
 from pymongo.database import Database
 from weblib.error import DataNotFound
-from werkzeug.utils import secure_filename
 
-from forms import FsrarForm, RestsForm, TicketForm, UploadForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
+from forms import FsrarForm, RestsForm, TicketForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
     MarkForm, ChequeForm, WBRepealConfirmForm, RequestRepealForm, TTNForm
 
 app = Flask(__name__)
@@ -213,20 +210,11 @@ class Configs:
                 file.write(utm.to_csv())
 
 
-def create_folder(dirname: str):
-    if not os.path.isdir(dirname):
-        os.mkdir(dirname)
-
-
 def remove_id(dictionary):
     """ Удаление идентификатора MongoDB """
     tmp_dict = dict(dictionary)
     del tmp_dict['_id']
     return tmp_dict
-
-
-def validate_filename(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 
 def get_xml_template(filename: str) -> str:
@@ -1010,125 +998,6 @@ def get_tickets():
     return render_template(**params)
 
 
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-    form = UploadForm()
-    params = {
-        'template_name_or_list': 'upload.html',
-        'title': 'Конвертер',
-        'form': form,
-    }
-    if request.method == 'POST':
-        if not request.files.get('file'):
-            flash('Файл не выбран')
-            return redirect(request.url)
-
-        file = request.files['file']
-
-        if not validate_filename(file.filename):
-            flash('Выберите XLSX документ')
-            return redirect(request.url)
-
-        if file:
-            filename = f'{uuid.uuid4()}_{secure_filename(file.filename)}'
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            errors = list()
-
-            export_date = datetime.strftime(datetime.now() - timedelta(1), app.config['CONVERTER_DATE_FORMAT'])
-
-            def collect_import_data(filename: str) -> dict:
-                results = dict()
-
-                try:
-                    df = pd.read_excel(
-                        io=filename,
-                        na_filter=False,  # не проверяет на попадание в список NaN
-                        sheet_name='Sheet1',
-                        usecols=['SKU', 'Код склада'],  # только 2 поля
-                        converters={'SKU': str, 'Код склада': int},  # типы для полей
-                    )
-                    results = df.groupby('Код склада')['SKU'].apply(list).to_dict()
-                except Exception as e:
-                    errors.append(f'Не удалось прочитать файл импорта {e}')
-
-                return results
-
-            def collect_export_results(imp: dict) -> dict:
-                results = dict()
-                for warehouse in imp.keys():
-                    exp_filename = f'skubody_{warehouse}_{export_date}.csv'
-                    exp_filepath = os.path.join(app.config['CONVERTER_EXPORT_PATH'], exp_filename)
-
-                    if os.path.isfile(exp_filepath):
-                        warehouse_articles = pd.read_csv(
-                            filepath_or_buffer=exp_filepath,
-                            sep='¦',
-                            header=None,  # без шапки, включая 1 строку
-                            usecols=[0, ],  # первое поле с данным
-                            squeeze=True,  # т.к. 1 поле, то ужимаем в лист
-                            engine='python',  # для корректной обработки разделителя
-                            encoding='utf-8',  # обязательно, т.к разделитель
-                            converters={0: str}  # поле как строка
-                        ).to_list()
-                        results[warehouse] = warehouse_articles
-
-                    else:
-                        errors.append(f'Место хранения {warehouse}: Файл {exp_filepath} недоступен')
-
-                return results
-
-            def make_difference(imp: dict, exp: dict):
-                results = dict()
-                if imp and exp:
-                    for warehouse, articles in imp.items():
-                        list_imp = articles
-                        list_exp = exp.get(warehouse)
-                        if list_exp is not None:
-                            difference = set(list_imp).difference(set(list_exp))
-                            results[warehouse] = difference
-                        else:
-                            errors.append(f'Место хранения {warehouse} пропущено')
-
-                return results
-
-            def write_down(fin: dict) -> str:
-                result = ''
-                if fin:
-                    wb = openpyxl.load_workbook(get_xml_template(app.config['CONVERTER_TEMPLATE_FILE']))
-                    sh = wb.active
-                    sh._current_row = 6  # header row, to append after
-
-                    today = datetime.now().strftime(app.config['CONVERTER_DATE_FORMAT'])
-                    result = f'autosupply_results_{today}_{uuid.uuid4()}.xlsx'
-                    result_path = os.path.join(app.config['RESULT_FOLDER'], result)
-
-                    for wh, articles in fin.items():
-                        for article in articles:
-                            sh.append((article, wh))
-
-                    wb.save(result_path)
-                return result
-
-            import_results = collect_import_data(filepath)
-            export_results = collect_export_results(import_results)
-            finale_results = make_difference(import_results, export_results)
-            result_filename = write_down(finale_results)
-
-            if errors:
-                flash('\n'.join(errors))
-
-            if result_filename:
-                return redirect(url_for('uploaded_file', filename=result_filename))
-
-    return render_template(**params)
-
-
-@app.route('/results/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['RESULT_FOLDER'], filename)
-
-
 @app.route('/add_utm', methods=['GET', 'POST'])
 def add_utm():
     def create_utm_from_request_form(request_form) -> Utm:
@@ -1335,5 +1204,3 @@ with MongoClient(app.config['MONGO_CONN']) as cl:
     db = cl[app.config['MONGO_DB']]
     cfg = Configs(db)
 
-for file in app.config.get('WORKING_DIRS', ()):
-    create_folder(file)

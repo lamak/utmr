@@ -1033,12 +1033,6 @@ def upload_file():
 
             export_date = datetime.strftime(datetime.now() - timedelta(1), app.config['CONVERTER_DATE_FORMAT'])
 
-            def insert_or_append(d: dict, k: str, v: str):
-                if d.get(k):
-                    d[k].append(v)
-                else:
-                    d[k] = [v, ]
-
             def collect_import_data(filename: str) -> dict:
                 results = dict()
 

@@ -1060,7 +1060,7 @@ def upload_file():
                         warehouse_articles = pd.read_csv(
                             filepath_or_buffer=exp_filepath,
                             sep='¦',
-                            header=0,
+                            header=None,
                             usecols=[0, ],
                             squeeze=True,
                             engine='python',

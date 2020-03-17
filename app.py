@@ -1039,10 +1039,10 @@ def upload_file():
                 try:
                     df = pd.read_excel(
                         io=filename,
-                        na_filter=False,
+                        na_filter=False,                                # не проверяет на попадание в список NaN
                         sheet_name='Sheet1',
-                        converters={'SKU': str, 'Код склада': int},
-                        usecols=['SKU', 'Код склада'],
+                        usecols=['SKU', 'Код склада'],                  # только 2 поля
+                        converters={'SKU': str, 'Код склада': int},     # типы для полей
                     )
                     results = df.groupby('Код склада')['SKU'].apply(list).to_dict()
                 except Exception as e:
@@ -1060,12 +1060,12 @@ def upload_file():
                         warehouse_articles = pd.read_csv(
                             filepath_or_buffer=exp_filepath,
                             sep='¦',
-                            header=None,
-                            usecols=[0, ],
-                            squeeze=True,
-                            engine='python',
-                            encoding='utf-8',
-                            converters={0: str}
+                            header=None,            # без шапки, включая 1 строку
+                            usecols=[0, ],          # первое поле с данным
+                            squeeze=True,           # т.к. 1 поле, то ужимаем в лист
+                            engine='python',        # для корректной обработки разделителя
+                            encoding='utf-8',       # обязательно, т.к разделитель
+                            converters={0: str}     # поле как строка
                         ).to_list()
                         results[warehouse] = warehouse_articles
 

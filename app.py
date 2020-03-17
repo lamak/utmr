@@ -1039,12 +1039,12 @@ def upload_file():
                 try:
                     df = pd.read_excel(
                         io=filename,
+                        na_filter=False,
                         sheet_name='Sheet1',
                         converters={'SKU': str, 'Код склада': int},
                         usecols=['SKU', 'Код склада'],
                     )
                     results = df.groupby('Код склада')['SKU'].apply(list).to_dict()
-
                 except Exception as e:
                     errors.append(f'Не удалось прочитать файл импорта {e}')
 
@@ -1064,6 +1064,7 @@ def upload_file():
                             usecols=[0, ],
                             squeeze=True,
                             engine='python',
+                            encoding='utf-8',
                             converters={0: str}
                         ).to_list()
                         results[warehouse] = warehouse_articles

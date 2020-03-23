@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01"
+              xmlns:tfs="http://fsrar.ru/WEGAIS/TransferFromShop">
+    <ns:Owner>
+        <ns:FSRAR_ID>XXX</ns:FSRAR_ID>
+    </ns:Owner>
+    <ns:Document>
+        <ns:TransferFromShop>
+            <tfs:Identity>XXX</tfs:Identity>
+            <tfs:Header>
+                <tfs:TransferNumber>XXX</tfs:TransferNumber>
+                <tfs:TransferDate>XX-XX-XX</tfs:TransferDate>
+            </tfs:Header>
+            <tfs:Content>
+            </tfs:Content>
+        </ns:TransferFromShop>
+    </ns:Document>
+</ns:Documents>

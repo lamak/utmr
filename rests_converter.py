@@ -168,7 +168,7 @@ def allocate_rests(invent):
         print(f'CODES: available on rests: {len(calculated)}, counted on invent: {len(counted)}')
         return calculated, counted
 
-    def generate_xml(rests: dict, fsrar_id: str, template='tfs.xml'):
+    def generate_xml(rests: dict, fsrar_id: str, template='xml/tfs.xml'):
         """ Формирование XML TransferFromShop """
 
         tree = ET.parse(template)
@@ -217,15 +217,21 @@ def allocate_rests(invent):
             identity_counter += 1
 
         filename = f'tfs_{uuid4()}.xml'
-        print(filename)
-        tree.write(filename)
+
+        try:
+            tree.write(filename)
+        except Exception as e:
+            print(f"CANT WRITE DOWN RESULT, EXITED {e}")
+            sys.exit(1)
+
+        return filename, identity_counter
 
     def get_fsrar_id(process_id: str) -> str:
 
         invent_header = f"""
-    select ourfsrarid, location from smegaisprocessegoabheader
-    where processid = {process_id} and processtype = 'EGOA'
-    """
+        select ourfsrarid, location from smegaisprocessegoabheader
+        where processid = {process_id} and processtype = 'EGOA'
+        """
 
         header_res = fetch_results(invent_header, cur)
         fsrar_id = header_res[0][0]
@@ -245,7 +251,9 @@ def allocate_rests(invent):
     allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
 
     # формируем файл выгрузки
-    generate_xml(allocated_rests, fsrar)
+    transfer_from_shop_filename, total_identities = generate_xml(allocated_rests, fsrar)
+    print(f"TFS SAVED: {transfer_from_shop_filename}, TOTAL LISTINGS: {total_identities}")
+    return transfer_from_shop_filename
 
 
 if __name__ == '__main__':

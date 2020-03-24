@@ -1325,7 +1325,7 @@ def view_errors():
 
 logging.basicConfig(
     filename='app.log',
-    level=logging.INFO,
+    level=logging.getLevelName(os.environ.get('LEVEL'), 'INFO'),
     format='%(asctime)s %(levelname)s: %(message)s'
 )
 

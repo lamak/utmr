@@ -119,7 +119,17 @@ def allocate_rests(invent):
         group by ourfsrarid, alccode
         """
 
-        invent_rests = f"""
+        invent_marks = f"""
+        SELECT alccode, rst.markcode
+        FROM smegaisprocessegoabheader hdr 
+        LEFT JOIN smegaisprocessegoabspec rst ON hdr.processid = rst.processid AND hdr.processtype = rst.processtype
+        WHERE hdr.processid = 166
+            AND hdr.processtype = 'EGOA'
+            AND length(rst.markcode) = 68
+            AND rst.markcode not in (select markcode from SMEGAISRESTSPIECE)
+        """
+
+        r2_rests = f"""
         SELECT ourfsrarid, alccode, quantity
         FROM smegaisrests
         WHERE ourfsrarid = {fsrar_id} 
@@ -138,6 +148,10 @@ def allocate_rests(invent):
         inv_pd.columns = ['fsrar', 'alccode', 'quantity']
         inv_pd.set_index(['fsrar', 'alccode'])
         inv_pd = inv_pd.drop(columns='fsrar')
+
+        inv_marks_pd = pd.DataFrame.from_records(fetch_results(invent_marks, cur))
+        inv_marks_pd.columns = ['alccode', 'markcode']
+        inv_pd.set_index(['alccode', ])
 
         in_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
         in_pd.columns = ['fsrar', 'date', 'alccode', 'quantity', 'f2']
@@ -166,6 +180,10 @@ def allocate_rests(invent):
         calculated = indexed_df_to_nested_dict(result_pd)
         counted = indexed_df_to_nested_dict(inv_pd)
         print(f'CODES: available on rests: {len(calculated)}, counted on invent: {len(counted)}')
+
+        # приводим список марок из инвентаризации к виду {alcode: [mark, ...], ...}
+        invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
+
         return calculated, counted
 
     def generate_xml(rests: dict, fsrar_id: str, template='xml/tfs.xml'):

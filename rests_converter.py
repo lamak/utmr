@@ -207,7 +207,7 @@ def allocate_rests(invent):
                 qty = int(qty)
                 if marks and qty:
                     rfu2_marks[alc_code][rfu] = marks[:qty]
-                    marks = marks[:qty]
+                    marks = marks[qty:]
                     if not marks:
                         print(f'DONE {alc_code}')
 

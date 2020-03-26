@@ -80,7 +80,7 @@ def allocate_rests(invent):
                 outstock[alc_code] = qty
                 print(f'- NOT DONE: {qty}')
 
-        print(f"{'ALL DONE...' if not outstock else f'ERROR OUT STOCK: {outstock}'}")
+        print(f"{'ALL DONE...' if not outstock else f'WARNING OUT STOCK: {outstock}'}")
 
         return result
 

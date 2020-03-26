@@ -179,9 +179,13 @@ def allocate_rests(invent):
         result_pd = clean_pd[clean_pd['total'] > 0]
 
         # приводим датафреймы к вложенным словарям для удобства
-        calculated = indexed_df_to_nested_dict(result_pd)
         counted = indexed_df_to_nested_dict(inv_pd)
-        print(f'CODES: available on rests: {len(calculated)}, counted on invent: {len(counted)}')
+        calculated = indexed_df_to_nested_dict(result_pd)
+        calculated_rfu2 = sum([len(v) for v in calculated.values()])
+        calculated_qty = sum([sum(v.values()) for v in calculated.values()])
+
+        print(f'RESTS: CODES: {len(calculated.keys())}, RFU2: {calculated_rfu2} TOTAL QTY: {calculated_qty}')
+        print(f'INVENT: CODES: {len(counted.keys())}, QTY: {sum(counted.values())}')
 
         # приводим список марок из инвентаризации к виду {alcode: [mark, ...], ...}
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()

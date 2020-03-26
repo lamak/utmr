@@ -4,6 +4,7 @@ import xml.dom.minidom
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 from datetime import datetime
+from pprint import pprint
 from typing import Tuple
 from uuid import uuid4
 
@@ -13,6 +14,8 @@ import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
+
+DEBUG = os.environ.get('DEBUG')
 
 
 @click.command()
@@ -32,7 +35,8 @@ def allocate_rests(invent):
             sys.exit(1)
 
         conn = f'{oracle_user}/{oracle_pass}@{oracle_host}/{oracle_name}'
-        print(f'USING DB: {conn}')
+        if DEBUG:
+            print(f'USING DB: {conn}')
         try:
             con = cx_Oracle.connect(conn)
             return con.cursor()
@@ -59,7 +63,7 @@ def allocate_rests(invent):
         """ Распределяем имеющиеся остатки (из инвентаризации, invent) на расчитанные остатки по справкам  (rests)"""
         total_rests = deepcopy(total_rests)
         result = {}
-        outstock = {}
+        out_stock = {}
 
         print("PROCESSING CODES...")
         for alc_code, qty in invent_rests.items():
@@ -79,10 +83,10 @@ def allocate_rests(invent):
                         print(f'+ ADDED {f2} ACODE FULLFILED WITH {qty} (WAS {f2_qty})')
                         qty = 0
             if qty > 0:
-                outstock[alc_code] = qty
+                out_stock[alc_code] = qty
                 print(f'- NOT DONE: {qty}')
 
-        print(f"{'ALL DONE...' if not outstock else f'WARNING OUT STOCK: {outstock}'}")
+        print(f"{'ALL DONE...' if not out_stock else f'WARNING OUT STOCK: {out_stock}'}")
 
         return result
 
@@ -216,8 +220,9 @@ def allocate_rests(invent):
                 if marks and qty:
                     rfu2_marks[alc_code][rfu] = marks[:qty]
                     marks = marks[qty:]
-                    if not marks:
-                        print(f'DONE {alc_code}')
+
+            if marks:
+                print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}')
 
         return rfu2_marks
 
@@ -351,6 +356,15 @@ def allocate_rests(invent):
 
     # остатки и пересчет
     calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
+    if DEBUG:
+        print(' === RESTS === ')
+        pprint(calculated_rests)
+
+        print(' === INVNT === ')
+        pprint(counted_rests)
+
+        print(' === MARKS === ')
+        pprint(counted_marks)
 
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
     allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)

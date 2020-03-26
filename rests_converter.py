@@ -2,6 +2,7 @@ import os
 import sys
 import xml.dom.minidom
 import xml.etree.ElementTree as ET
+from copy import deepcopy
 from datetime import datetime
 from typing import Tuple
 from uuid import uuid4
@@ -56,6 +57,7 @@ def allocate_rests(invent):
 
     def allocation_rests_on_rfu2(total_rests: dict, invent_rests: dict, ) -> dict:
         """ Распределяем имеющиеся остатки (из инвентаризации, invent) на расчитанные остатки по справкам  (rests)"""
+        total_rests = deepcopy(total_rests)
         result = {}
         outstock = {}
 
@@ -194,8 +196,10 @@ def allocate_rests(invent):
 
     def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> dict:
         """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
-        print("PROCESSING MARKS...")
+        rests = deepcopy(rests)
         rfu2_marks = {}
+
+        print("PROCESSING MARKS...")
         for alc_code, marks in mark_codes.items():
             rfu2_marks[alc_code] = {}
             rfu2_rests = rests.get(alc_code)

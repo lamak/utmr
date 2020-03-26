@@ -268,7 +268,6 @@ def allocate_rests(invent):
 
         try:
             pretty_print_xml(root, filename)
-            # tree.write(filename)
         except Exception as e:
             print(f"CANT WRITE DOWN RESULT, EXITED {e}")
             sys.exit(1)
@@ -311,7 +310,6 @@ def allocate_rests(invent):
 
         try:
             pretty_print_xml(root, filename)
-            # tree.write(filename)
         except Exception as e:
             print(f"CANT WRITE DOWN RESULT, EXITED {e}")
             sys.exit(1)

@@ -1,7 +1,9 @@
 import os
 import sys
+import xml.dom.minidom
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from typing import Tuple
 from uuid import uuid4
 
 import click
@@ -29,7 +31,7 @@ def allocate_rests(invent):
             sys.exit(1)
 
         conn = f'{oracle_user}/{oracle_pass}@{oracle_host}/{oracle_name}'
-
+        print(f'USING DB: {conn}')
         try:
             con = cx_Oracle.connect(conn)
             return con.cursor()
@@ -82,7 +84,7 @@ def allocate_rests(invent):
 
         return result
 
-    def process_rests_data(fsrar_id, process_id):
+    def process_rests_data(fsrar_id: str, process_id: str):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
         # список марок и их цен
         income_ttn = f"""
@@ -123,7 +125,7 @@ def allocate_rests(invent):
         SELECT alccode, rst.markcode
         FROM smegaisprocessegoabheader hdr 
         LEFT JOIN smegaisprocessegoabspec rst ON hdr.processid = rst.processid AND hdr.processtype = rst.processtype
-        WHERE hdr.processid = 166
+        WHERE hdr.processid = {process_id}
             AND hdr.processtype = 'EGOA'
             AND length(rst.markcode) = 68
             AND rst.markcode not in (select markcode from SMEGAISRESTSPIECE)
@@ -151,7 +153,7 @@ def allocate_rests(invent):
 
         inv_marks_pd = pd.DataFrame.from_records(fetch_results(invent_marks, cur))
         inv_marks_pd.columns = ['alccode', 'markcode']
-        inv_pd.set_index(['alccode', ])
+        inv_marks_pd.set_index(['alccode', ])
 
         in_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
         in_pd.columns = ['fsrar', 'date', 'alccode', 'quantity', 'f2']
@@ -184,28 +186,56 @@ def allocate_rests(invent):
         # приводим список марок из инвентаризации к виду {alcode: [mark, ...], ...}
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
 
-        return calculated, counted
+        return calculated, counted, invent_mark_codes
 
-    def generate_xml(rests: dict, fsrar_id: str, template='xml/tfs.xml'):
-        """ Формирование XML TransferFromShop """
+    def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> dict:
+        """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
+        print("PROCESSING MARKS...")
+        rfu2_marks = {}
+        for alc_code, marks in mark_codes.items():
+            rfu2_marks[alc_code] = {}
+            rfu2_rests = rests.get(alc_code)
+            rfu2_total = sum(rfu2_rests.values())
+            alc_code_qty = len(marks)
 
-        tree = ET.parse(template)
-        root = tree.getroot()
+            print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
 
-        # заполняем заголовки
+            if rfu2_total < alc_code_qty:
+                print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
+
+            for rfu, qty in rfu2_rests.items():
+                qty = int(qty)
+                if marks and qty:
+                    rfu2_marks[alc_code][rfu] = marks[:qty]
+                    marks = marks[:qty]
+                    if not marks:
+                        print(f'DONE {alc_code}')
+
+        return rfu2_marks
+
+    def fill_xml_header(root: ET.Element, fsrar_id: str):
+        """ Заполняем заголовки"""
         fsrar_el = root[0][0]
         fsrar_el.text = fsrar_id
 
         # произвольный идектификатор (без валидации)
         identity_id = str(uuid4().int)[:6]
-        tts_identity_num_el = root[1][0][0]
-        tts_identity_num_el.text = identity_id
+        act_identity_num_el = root[1][0][0]
+        act_identity_num_el.text = identity_id
 
-        tts_header_num_el = root[1][0][1][0]
-        tts_header_num_el.text = identity_id
+        act_header_num_el = root[1][0][1][0]
+        act_header_num_el.text = identity_id
 
-        tts_date_el = root[1][0][1][1]
-        tts_date_el.text = datetime.now().strftime("%Y-%m-%d")
+        act_date_el = root[1][0][1][1]
+        act_date_el.text = datetime.now().strftime("%Y-%m-%d")
+        return root
+
+    def generate_tfs_xml(rests: dict, fsrar_id: str, template: str = 'xml/tfs.xml') -> Tuple[str, int]:
+        """ Формирование XML TransferFromShop на основе п 1.17 документации """
+
+        tree = ET.parse(template)
+        root = tree.getroot()
+        root = fill_xml_header(root, fsrar_id)
 
         # content
         content_section = root[1][0][2]
@@ -237,12 +267,63 @@ def allocate_rests(invent):
         filename = f'tfs_{uuid4()}.xml'
 
         try:
-            tree.write(filename)
+            pretty_print_xml(root, filename)
+            # tree.write(filename)
         except Exception as e:
             print(f"CANT WRITE DOWN RESULT, EXITED {e}")
             sys.exit(1)
 
         return filename, identity_counter
+
+    def generate_afbc_xml(marks: dict, fsrar_id: str, template: str = 'xml/actfixbarcode.xml') -> Tuple[str, int]:
+        """ Формируем ActFixBarCode из посчитанных марок согласно документации п 3.8 и шаблона """
+
+        tree = ET.parse(template)
+        root = tree.getroot()
+        root = fill_xml_header(root, fsrar_id)
+
+        # content
+        content_section = root[1][0][2]
+
+        ns1 = '{http://fsrar.ru/WEGAIS/ActFixBarCode}'
+        ns2 = '{http://fsrar.ru/WEGAIS/CommonV3}'
+
+        identity_counter = 1
+
+        for alc_code, f2_marks in marks.items():
+            for f2, marks in f2_marks.items():
+                position = ET.SubElement(content_section, f'{ns1}Position')
+
+                identity = ET.SubElement(position, f'{ns1}Identity')
+                identity.text = str(identity_counter)
+
+                f2_reg = ET.SubElement(position, f'{ns1}F2RegId')
+                f2_reg.text = f2
+
+                mark_info = ET.SubElement(position, f'{ns1}MarkInfo')
+                for mark in marks:
+                    mark_el = ET.SubElement(mark_info, f'{ns2}amc')
+                    mark_el.text = mark
+
+            identity_counter += 1
+
+        filename = f'actfixbarcode_{uuid4()}.xml'
+
+        try:
+            pretty_print_xml(root, filename)
+            # tree.write(filename)
+        except Exception as e:
+            print(f"CANT WRITE DOWN RESULT, EXITED {e}")
+            sys.exit(1)
+
+        return filename, identity_counter
+
+    def pretty_print_xml(root, output_xml):
+        """ Форматирование XML """
+        xml_string = xml.dom.minidom.parseString(ET.tostring(root)).toprettyxml()
+        xml_string = os.linesep.join([s for s in xml_string.splitlines() if s.strip()])
+        with open(output_xml, "w") as file_out:
+            file_out.write(xml_string)
 
     def get_fsrar_id(process_id: str) -> str:
 
@@ -263,15 +344,23 @@ def allocate_rests(invent):
     fsrar = get_fsrar_id(invent)
 
     # остатки и пересчет
-    calculated_rests, counted_rests = process_rests_data(fsrar, invent)
+    calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
 
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
     allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
 
-    # формируем файл выгрузки
-    transfer_from_shop_filename, total_identities = generate_xml(allocated_rests, fsrar)
+    # формируем файл выгрузки Р2->Р1
+    transfer_from_shop_filename, total_identities = generate_tfs_xml(allocated_rests, fsrar)
     print(f"TFS SAVED: {transfer_from_shop_filename}, TOTAL LISTINGS: {total_identities}")
-    return transfer_from_shop_filename
+
+    # размещаем марки на алкокоды-справки
+    allocated_marks = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
+
+    # формируем файл выгрузки Р2->Р1
+    act_fix_barcode_filename, total_identities = generate_afbc_xml(allocated_marks, fsrar)
+    print(f"ACTFIXBARCODE SAVED: {act_fix_barcode_filename}, TOTAL LISTINGS: {total_identities}")
+
+    return transfer_from_shop_filename, act_fix_barcode_filename
 
 
 if __name__ == '__main__':

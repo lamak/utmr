@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01"
+              xmlns:awr="http://fsrar.ru/WEGAIS/ActFixBarCode" xmlns:ce="http://fsrar.ru/WEGAIS/CommonV3">
+    <ns:Owner>
+        <ns:FSRAR_ID>XXX</ns:FSRAR_ID>
+    </ns:Owner>
+    <ns:Document>
+        <ns:ActFixBarCode>
+            <awr:Identity>XXX</awr:Identity>
+            <awr:Header>
+                <awr:Number>XXX</awr:Number>
+                <awr:ActDate>XXXX-XX-XX</awr:ActDate>
+                <awr:Note>XXX</awr:Note>
+            </awr:Header>
+            <awr:Content>
+            </awr:Content>
+        </ns:ActFixBarCode>
+    </ns:Document>
+</ns:Documents>

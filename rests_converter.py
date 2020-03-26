@@ -151,7 +151,7 @@ def allocate_rests(invent):
         group by ourfsrarid, alccode, informbregid
         order by ourfsrarid, informbregid, alccode
         """
-
+        # todo: could be empty in cases no data counted on invent
         inv_pd = pd.DataFrame.from_records(fetch_results(invent_data, cur))
         inv_pd.columns = ['fsrar', 'alccode', 'quantity']
         inv_pd.set_index(['fsrar', 'alccode'])
@@ -164,15 +164,15 @@ def allocate_rests(invent):
         in_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
         in_pd.columns = ['fsrar', 'date', 'alccode', 'quantity', 'f2']
         in_pd.set_index(['fsrar', 'alccode', 'f2'])
-
+        # todo: cound be empty if no returns was completed
         out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
         out_pd.columns = ['fsrar', 'alccode', 'quantity', 'f2']
         out_pd.set_index(['fsrar', 'alccode', 'f2'])
-
+        # todo: could be empy if no marks was recorded on rests
         f3_pd = pd.DataFrame.from_records(fetch_results(f3_marks, cur))
         f3_pd.columns = ['fsrar', 'alccode', 'f2', 'quantity']
         f3_pd.set_index(['fsrar', 'alccode', 'f2'])
-
+        # todo: independent stateless processing
         # собираем вместе все таблицы
         in_out_pd = in_pd.merge(out_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
         all_pd = in_out_pd.merge(f3_pd, on=['fsrar', 'alccode', 'f2'], how='outer')

@@ -76,11 +76,13 @@ def allocate_rests(invent):
                         qty = qty - f2_qty
                         rest_alc[f2] = 0
                         result[alc_code][f2] = f2_qty
-                        print(f'++ ADDED {f2} DEPLETED WITH {f2_qty}, REMAIN TO ALLOCATE {qty}')
+                        if DEBUG:
+                            print(f'++ ADDED {f2} DEPLETED WITH {f2_qty}, REMAIN TO ALLOCATE {qty}')
                     else:
                         rest_alc[f2] = f2_qty - qty
                         result[alc_code][f2] = qty
-                        print(f'+ ADDED {f2} ACODE FULLFILED WITH {qty} (WAS {f2_qty})')
+                        if DEBUG:
+                            print(f'+ ADDED {f2} ACODE FULLFILED WITH {qty} (WAS {f2_qty})')
                         qty = 0
             if qty > 0:
                 out_stock[alc_code] = qty

@@ -875,7 +875,8 @@ def check_mark():
                 res = sign.text
         except requests.ConnectionError:
             res = 'УТМ недоступен'
-
+        except UnicodeError:
+            res = 'Ошибка в URL проверьте переменные окружения'
         log = f'Проверка марки: {utm.title} [{utm.fsrar}] {mark[:16]}...{mark[-16:]} {res}'
         flash(log)
         logging.info(log)
@@ -1323,7 +1324,7 @@ def view_errors():
 
 logging.basicConfig(
     filename='app.log',
-    level=logging.getLevelName(os.environ.get('LEVEL'), 'INFO'),
+    level=logging.getLevelName(os.environ.get('LEVEL', 'INFO')),
     format='%(asctime)s %(levelname)s: %(message)s'
 )
 

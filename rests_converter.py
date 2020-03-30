@@ -311,7 +311,7 @@ def allocate_rests(invent):
                 identity = ET.SubElement(position, f'{ns1}Identity')
                 identity.text = str(identity_counter)
 
-                f2_reg = ET.SubElement(position, f'{ns1}F2RegId')
+                f2_reg = ET.SubElement(position, f'{ns1}Inform2RegId')
                 f2_reg.text = f2
 
                 mark_info = ET.SubElement(position, f'{ns1}MarkInfo')

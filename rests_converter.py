@@ -70,6 +70,7 @@ def allocate_rests(invent):
             print(f'ACODE {alc_code} : {qty}')
             result[alc_code] = {}
             rest_alc = total_rests.get(alc_code)
+            # todo: check for none and qty to be int always
             for f2, f2_qty in rest_alc.items():
                 if qty and f2_qty:
                     if qty >= f2_qty:

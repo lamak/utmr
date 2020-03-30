@@ -1163,8 +1163,7 @@ def status():
     params = {
         'template_name_or_list': 'status.html',
         'title': 'Статус (новый)',
-        'description': 'Результат последней проверки УТМ, обновление каждую минуту',
-        'refresh': 60,
+        'description': 'Результат последней проверки УТМ',
         'ord': default,
         'form': form,
     }

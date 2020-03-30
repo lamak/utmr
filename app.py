@@ -1175,7 +1175,6 @@ def status():
         params['results'] = results
 
     except Exception as e:
-        err = f'Не удалось получить результаты проверки: {e}'
         flash(f'{e} Выполните полную проверку')
         logging.error(e)
 

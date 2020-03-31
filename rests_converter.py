@@ -281,7 +281,7 @@ def allocate_rests(invent):
         act_date_el.text = datetime.now().strftime("%Y-%m-%d")
         return root
 
-    def generate_tfs_xml(rests: dict, fsrar_id: str, template: str = 'xml/tfs.xml') -> Tuple[str, int]:
+    def generate_tfs_xml(rests: dict, fsrar_id: str, invent_id: str, template: str = 'xml/tfs.xml') -> Tuple[str, int]:
         """ Формирование XML TransferFromShop на основе п 1.17 документации """
 
         tree = ET.parse(template)
@@ -315,7 +315,7 @@ def allocate_rests(invent):
 
             identity_counter += 1
 
-        filename = f'tfs_{uuid4()}.xml'
+        filename = f'{invent_id}_tfs_{uuid4()}.xml'
 
         try:
             pretty_print_xml(root, filename)
@@ -325,7 +325,7 @@ def allocate_rests(invent):
 
         return filename, identity_counter
 
-    def generate_afbc_xml(marks: dict, fsrar_id: str, template: str = 'xml/actfixbarcode.xml') -> Tuple[str, int]:
+    def generate_afbc_xml(marks: dict, fsrar_id: str, invent_id: str, template: str = 'xml/actfixbarcode.xml') -> Tuple[str, int]:
         """ Формируем ActFixBarCode из посчитанных марок согласно документации п 3.8 и шаблона """
 
         tree = ET.parse(template)
@@ -357,7 +357,7 @@ def allocate_rests(invent):
 
             identity_counter += 1
 
-        filename = f'actfixbarcode_{uuid4()}.xml'
+        filename = f'{invent_id}_actfixbarcode_{uuid4()}.xml'
 
         try:
             pretty_print_xml(root, filename)
@@ -387,7 +387,7 @@ def allocate_rests(invent):
         print(f'PROCESS: {process_id} [FSRAR: {fsrar_id} STOCK: {loc_id}]')
         return fsrar_id
 
-    def generate_sql_insert_mark(marks: dict, fsrar_id: str):
+    def generate_sql_insert_mark(marks: dict, fsrar_id: str, invent_id: str):
         """ Формируем SQL INSERT  вида {alccode: {rfu2 : [mark, ...], ...},...} """
 
         sql = []
@@ -404,7 +404,7 @@ def allocate_rests(invent):
 
         sql.append(footer)
 
-        filename = f'import_marks_{uuid4()}.sql'
+        filename = f'{invent_id}_import_marks_{uuid4()}.sql'
         with open(filename, "w") as outfile:
             outfile.write("\n".join(sql))
 
@@ -431,16 +431,16 @@ def allocate_rests(invent):
     allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
 
     # формируем файл выгрузки Р2->Р1
-    transfer_from_shop_filename, total_identities = generate_tfs_xml(allocated_rests, fsrar)
+    transfer_from_shop_filename, total_identities = generate_tfs_xml(allocated_rests, fsrar, invent)
     print(f"TFS SAVED: {transfer_from_shop_filename}, TOTAL LISTINGS: {total_identities}")
 
     # размещаем марки на алкокоды-справки
     allocated_marks = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
 
-    act_fix_barcode_filename, total_identities = generate_afbc_xml(allocated_marks, fsrar)
+    act_fix_barcode_filename, total_identities = generate_afbc_xml(allocated_marks, fsrar, invent)
     print(f"ACTFIXBARCODE SAVED: {act_fix_barcode_filename}, TOTAL LISTINGS: {total_identities}")
 
-    sql_import = generate_sql_insert_mark(allocated_marks, fsrar)
+    sql_import = generate_sql_insert_mark(allocated_marks, fsrar, invent)
     print(f'SQL INSERT SAVED: {sql_import}')
     return transfer_from_shop_filename, act_fix_barcode_filename
 

@@ -244,27 +244,31 @@ def allocate_rests(invent):
         """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
         rests = deepcopy(rests)
         rfu2_marks = {}
+        outstock = {}
 
         print("PROCESSING MARKS...")
         for alc_code, marks in mark_codes.items():
             rfu2_marks[alc_code] = {}
             rfu2_rests = rests.get(alc_code)
-            rfu2_total = sum(rfu2_rests.values())
-            alc_code_qty = len(marks)
+            if rfu2_rests is not None:
+                rfu2_total = sum(rfu2_rests.values())
+                alc_code_qty = len(marks)
 
-            print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
+                print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
 
-            if rfu2_total < alc_code_qty:
-                print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
+                if rfu2_total < alc_code_qty:
+                    print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
 
-            for rfu, qty in rfu2_rests.items():
-                qty = int(qty)
-                if marks and qty:
-                    rfu2_marks[alc_code][rfu] = marks[:qty]
-                    marks = marks[qty:]
+                for rfu, qty in rfu2_rests.items():
+                    qty = int(qty)
+                    if marks and qty:
+                        rfu2_marks[alc_code][rfu] = marks[:qty]
+                        marks = marks[qty:]
 
             if marks:
-                print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}')
+                outstock[alc_code] = marks
+                print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
+
 
         return rfu2_marks
 

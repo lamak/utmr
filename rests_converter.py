@@ -392,15 +392,17 @@ def allocate_rests(invent):
 
         sql = []
         today = datetime.now().strftime("%m.%d.%y")
-        insert_header = 'INSERT_ALL'
-        into_header = 'INTO SMEGAISRESTSPIECE (OURFSRARID, MARKCODE, ALCCODE, INFORMBREGID, EXISTINGCOUNT, TTNGLID, RESTSDATE)'
-        sql.append(insert_header)
-        for acode, rests in marks.items():
-            for f2, mark in rests.items():
-                sql.append(indexed_df_to_nested_dict())
-                sql.append(f"VALUES ('{fsrar_id}', '{mark}', '{acode}', '{f2}', 1, 0, '{today}')")
+        header = 'INSERT_ALL'
+        into = 'INTO SMEGAISRESTSPIECE (OURFSRARID, MARKCODE, ALCCODE, INFORMBREGID, EXISTINGCOUNT, TTNGLID, RESTSDATE)'
+        footer = 'SELECT 1 FROM DUAL;'
+        sql.append(header)
+        for alccode, rests in marks.items():
+            for f2, mark_list in rests.items():
+                for mark in mark_list:
+                    sql.append(into)
+                    sql.append(f"VALUES ('{fsrar_id}', '{mark}', '{alccode}', '{f2}', 1, 0, '{today}')")
 
-        sql.append('SELECT 1 FROM DUAL;')
+        sql.append(footer)
 
         filename = f'import_marks_{uuid4()}.sql'
         with open(filename, "w") as outfile:

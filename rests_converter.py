@@ -99,9 +99,8 @@ def allocate_rests(invent):
 
     def process_rests_data(fsrar_id: str, process_id: str):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
-        # список марок и их цен
         income_ttn = f"""
-        select distinct egaisfixdate, productalccode, informbregid, quantity  from smegaisdocspec spec
+        select distinct productalccode, informbregid, sum(quantity) quantity  from smegaisdocspec spec
         left join smegaisdocheader header on spec.glid = header.glid -- шапка с фсрарид, датой, хедером
         left join SMEGAISDOCSPECACT act on spec.glid = act.glid and spec.identity = act.identity -- марки
         where header.ourfsrarid = '{fsrar_id}' 
@@ -109,8 +108,9 @@ def allocate_rests(invent):
             and doctype = 'WBInvoiceToMe' -- приходные накладные от поставщика
             and informbregid is not Null -- обязательно указанием справки 
             and spec.productvcode not in (500, 510, 520, 261, 262, 263) -- слабоалкогольная продукция
-        group by egaisfixdate, wbregid, productalccode, quantity, informbregid
-        order by egaisfixdate desc , quantity desc, productalccode, informbregid
+
+        group by productalccode, informbregid
+        order by quantity desc, productalccode, informbregid
         """
 
         return_ttn = f"""
@@ -176,9 +176,8 @@ def allocate_rests(invent):
         # ttn: приход, алкокода, справки, количество
         rests_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
         if not rests_pd.empty:
-            rests_pd.columns = ['date', 'alccode', 'f2', 'total', ]
+            rests_pd.columns = ['alccode', 'f2', 'total', ]
             rests_pd.set_index(['alccode', 'f2'])
-            rests_pd = rests_pd.drop(columns=['date', ])
 
             # ttn: расход, алкокода справки и количество
             out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))

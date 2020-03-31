@@ -97,7 +97,7 @@ def allocate_rests(invent):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
         # список марок и их цен
         income_ttn = f"""
-        select ourfsrarid, egaisfixdate, productalccode, quantity, informbregid  from smegaisdocspec spec
+        select egaisfixdate, productalccode, informbregid, quantity  from smegaisdocspec spec
         left join smegaisdocheader header on spec.glid = header.glid -- шапка с фсрарид, датой, хедером
         left join SMEGAISDOCSPECACT act on spec.glid = act.glid and spec.identity = act.identity -- марки
         where header.ourfsrarid = '{fsrar_id}' 
@@ -105,12 +105,12 @@ def allocate_rests(invent):
             and doctype = 'WBInvoiceToMe' -- приходные накладные от поставщика
             and informbregid is not Null -- обязательно указанием справки 
             and spec.productvcode not in (500, 510, 520, 261, 262, 263) -- слабоалкогольная продукция
-        group by ourfsrarid, egaisfixdate, wbregid, productalccode, quantity, informbregid
-        order by ourfsrarid, egaisfixdate desc , quantity desc, productalccode, informbregid
+        group by egaisfixdate, wbregid, productalccode, quantity, informbregid
+        order by egaisfixdate desc , quantity desc, productalccode, informbregid
         """
 
         return_ttn = f"""
-        select distinct ourfsrarid, productalccode, quantity, f2regid from smegaisdocspec spec
+        select distinct productalccode,  f2regid, quantity from smegaisdocspec spec
         left join smegaisdocheader header on spec.glid = header.glid
         left join smegaisdocspecf2 f2 on spec.glid=f2.glid and spec.identity = f2.identity
         where header.ourfsrarid = '{fsrar_id}' 
@@ -118,16 +118,17 @@ def allocate_rests(invent):
             and doctype = 'WBReturnFromMe' -- возвраты
             and f2regid is not Null -- обязательно указана справка 
             and spec.productvcode not in (500, 510, 520, 261, 262, 263) 
-        order by ourfsrarid, productalccode, f2regid, quantity desc
+        order by productalccode, f2regid, quantity desc
         """
 
         invent_data = f"""
-        select ourfsrarid, alccode, sum(quantity) from smegaisprocessegoabheader header
+        select alccode, sum(quantity) from smegaisprocessegoabheader header
         left join SMEGAISPROCESSEGOABSPEC rst on header.processid = rst.processid and header.processtype = rst.processtype
         where header.processid = {process_id} 
             and header.processtype = 'EGOA' -- процесс инвентаризации крепкоалкогольной
             and length(rst.markcode) = 68 -- длина старой АМ
-        group by ourfsrarid, alccode
+            AND rst.markcode not in (select markcode from SMEGAISRESTSPIECE) -- исключаем марки на Р3
+        group by alccode
         """
 
         invent_marks = f"""
@@ -141,7 +142,7 @@ def allocate_rests(invent):
         """
 
         r2_rests = f"""
-        SELECT ourfsrarid, alccode, quantity
+        SELECT alccode, quantity
         FROM smegaisrests
         WHERE ourfsrarid = {fsrar_id} 
             and isretail = 1 -- остатки на Р2 (торговый зал)
@@ -149,47 +150,92 @@ def allocate_rests(invent):
             """
 
         f3_marks = f"""
-        select ourfsrarid, alccode, informbregid, count(markcode) from SMEGAISRESTSPIECE
+        select alccode, informbregid, count(markcode) from SMEGAISRESTSPIECE
         where ourfsrarid = '{fsrar_id}'
-        group by ourfsrarid, alccode, informbregid
-        order by ourfsrarid, informbregid, alccode
+        group by alccode, informbregid
+        order by informbregid, alccode
         """
-        # todo: could be empty in cases no data counted on invent
+        # Описание процесса:
+        # 1. Получаем остатки по TTN приход, в разрезе алкокод-справка-количество (завершенные, со справками, крепкий алкоголь)
+        # 2. Вычитаем TTN расходы
+        # 3. Вычитаем помарочные остатки
+        # 4. С полученными остатками сопоставляем инвентаризацию (марки 68 символов, не числящиеся на помарочном учете)
+        # 5. Формируем TransferFromShop Р2 -> Р1
+        # 6. Формируем ActBarCodeFix для фиксации марок на Р3
+        # 7. Формируетм SQL Insert для отображения посчитанных марок в Супермаге
+        #
+        # Шаги 6,7 опциональны, т.к. можно обновить остатки на Р1, и закончить штатно инвентаризацию в Супермаге
+        # тем самым зафиксировов Р3 в ЕГАИС и в Супермаг
+        #
+        # Любые данные могут быть опциональн, их может не быть, это надо обрабатывать
+
+        # ttn: приход, алкокода, справки, количество
+        rests_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
+        if not rests_pd.empty:
+            rests_pd.columns = ['date', 'alccode', 'f2', 'total', ]
+            rests_pd.set_index(['alccode', 'f2'])
+            rests_pd.drop(columns=['date', ])
+
+            # ttn: расход, алкокода справки и количество
+            out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
+            if not out_pd.empty:
+                out_pd.columns = ['alccode', 'f2', 'quantity']
+                out_pd.set_index(['alccode', 'f2'])
+                rests_pd = rests_pd.merge(out_pd, on=['alccode', 'f2'], how='outer')
+                rests_pd['total'] = rests_pd['total'].fillna(0) - rests_pd['quantity'].fillna(0)
+                rests_pd = rests_pd.drop(columns=['quantity', ])
+            else:
+                print("Нет расходов по крепко алкогольной продукции")
+
+            # остатки Р3: алкокода, справки, количество
+            f3_pd = pd.DataFrame.from_records(fetch_results(f3_marks, cur))
+            if not f3_pd.empty:
+                f3_pd.columns = ['alccode', 'f2', 'quantity']
+                f3_pd.set_index(['alccode', 'f2'])
+                rests_pd = rests_pd.merge(f3_pd, on=['alccode', 'f2'], how='outer')
+                rests_pd['total'] = rests_pd['total'].fillna(0) - rests_pd['quantity'].fillna(0)
+                rests_pd = rests_pd.drop(columns=['quantity', ])
+            else:
+                print("Нет помарочных остатков")
+            rests_pd = rests_pd[rests_pd['total'] > 0]
+
+        else:
+            print("Не найдено приходов со старыми марками, продолжение невозможно")
+            sys.exit(1)
+
+        # инвентаризация: алкокода и количество
         inv_pd = pd.DataFrame.from_records(fetch_results(invent_data, cur))
-        inv_pd.columns = ['fsrar', 'alccode', 'quantity']
-        inv_pd.set_index(['fsrar', 'alccode'])
-        inv_pd = inv_pd.drop(columns='fsrar')
+        if not inv_pd.empty:
+            inv_pd.columns = ['alccode', 'quantity']
+            inv_pd.set_index(['alccode'])
+        else:
+            print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
+            sys.exit(1)
 
+        # инвентаризация: алкокода и марки
         inv_marks_pd = pd.DataFrame.from_records(fetch_results(invent_marks, cur))
-        inv_marks_pd.columns = ['alccode', 'markcode']
-        inv_marks_pd.set_index(['alccode', ])
+        if not inv_marks_pd.empty:
+            # нет старых марок в инвентаризации, нет фиксации и актов
+            inv_marks_pd.columns = ['alccode', 'markcode']
+            inv_marks_pd.set_index(['alccode', ])
+        else:
+            print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
+            sys.exit(1)
 
-        in_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
-        in_pd.columns = ['fsrar', 'date', 'alccode', 'quantity', 'f2']
-        in_pd.set_index(['fsrar', 'alccode', 'f2'])
-        # todo: cound be empty if no returns was completed
-        out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
-        out_pd.columns = ['fsrar', 'alccode', 'quantity', 'f2']
-        out_pd.set_index(['fsrar', 'alccode', 'f2'])
-        # todo: could be empy if no marks was recorded on rests
-        f3_pd = pd.DataFrame.from_records(fetch_results(f3_marks, cur))
-        f3_pd.columns = ['fsrar', 'alccode', 'f2', 'quantity']
-        f3_pd.set_index(['fsrar', 'alccode', 'f2'])
-        # todo: independent stateless processing
-        # собираем вместе все таблицы
-        in_out_pd = in_pd.merge(out_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
-        all_pd = in_out_pd.merge(f3_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
-
-        # считаем общее кол-во
-        all_pd['total'] = all_pd['quantity_x'].fillna(0) - all_pd['quantity_y'].fillna(0) - all_pd['quantity'].fillna(0)
-
-        # убираем неполные результаты
-        clean_pd = all_pd.drop(columns=['fsrar', 'date', 'quantity_x', 'quantity_y', 'quantity'])
-        result_pd = clean_pd[clean_pd['total'] > 0]
+        # # собираем вместе все таблицы
+        # in_out_pd = rests_pd.merge(out_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
+        # all_pd = in_out_pd.merge(f3_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
+        #
+        # # считаем общее кол-во
+        # all_pd['total'] = all_pd['quantity_x'].fillna(0) - all_pd['quantity_y'].fillna(0) - all_pd['quantity'].fillna(0)
+        #
+        # # убираем неполные результаты
+        # clean_pd = all_pd.drop(columns=['fsrar', 'date', 'quantity_x', 'quantity_y', 'quantity'])
+        # result_pd = clean_pd[clean_pd['total'] > 0]
 
         # приводим датафреймы к вложенным словарям для удобства
         counted = indexed_df_to_nested_dict(inv_pd)
-        calculated = indexed_df_to_nested_dict(result_pd)
+        calculated = indexed_df_to_nested_dict(rests_pd)
         calculated_rfu2 = sum([len(v) for v in calculated.values()])
         calculated_qty = sum([sum(v.values()) for v in calculated.values()])
 
@@ -340,11 +386,11 @@ def allocate_rests(invent):
             file_out.write(xml_string)
 
     def get_fsrar_id(process_id: str) -> str:
-
+        """ Получение ФСРАР из процесса инвентаризации """
         invent_header = f"""
-        select ourfsrarid, location from smegaisprocessegoabheader
-        where processid = {process_id} and processtype = 'EGOA'
-        """
+                select ourfsrarid, location from smegaisprocessegoabheader
+                where processid = {process_id} and processtype = 'EGOA'
+                """
 
         header_res = fetch_results(invent_header, cur)
         fsrar_id = header_res[0][0]
@@ -353,7 +399,6 @@ def allocate_rests(invent):
         return fsrar_id
 
     def generate_sql_insert_mark(marks: dict, fsrar_id: str):
-
         """ Формируем SQL INSERT  вида {alccode: {rfu2 : [mark, ...], ...},...} """
 
         sql = []

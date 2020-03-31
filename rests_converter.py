@@ -173,6 +173,25 @@ def allocate_rests(invent):
         #
         # Любые данные могут быть опциональн, их может не быть, это надо обрабатывать
 
+        # инвентаризация: алкокода и количество
+        inv_pd = pd.DataFrame.from_records(fetch_results(invent_data, cur))
+        if not inv_pd.empty:
+            inv_pd.columns = ['alccode', 'quantity']
+            inv_pd.set_index(['alccode'])
+        else:
+            print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
+            sys.exit(1)
+
+        # инвентаризация: алкокода и марки
+        inv_marks_pd = pd.DataFrame.from_records(fetch_results(invent_marks, cur))
+        if not inv_marks_pd.empty:
+            # нет старых марок в инвентаризации, нет фиксации и актов
+            inv_marks_pd.columns = ['alccode', 'markcode']
+            inv_marks_pd.set_index(['alccode', ])
+        else:
+            print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
+            sys.exit(1)
+
         # ttn: приход, алкокода, справки, количество
         rests_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
         if not rests_pd.empty:
@@ -204,25 +223,6 @@ def allocate_rests(invent):
 
         else:
             print("Не найдено приходов со старыми марками, продолжение невозможно")
-            sys.exit(1)
-
-        # инвентаризация: алкокода и количество
-        inv_pd = pd.DataFrame.from_records(fetch_results(invent_data, cur))
-        if not inv_pd.empty:
-            inv_pd.columns = ['alccode', 'quantity']
-            inv_pd.set_index(['alccode'])
-        else:
-            print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
-            sys.exit(1)
-
-        # инвентаризация: алкокода и марки
-        inv_marks_pd = pd.DataFrame.from_records(fetch_results(invent_marks, cur))
-        if not inv_marks_pd.empty:
-            # нет старых марок в инвентаризации, нет фиксации и актов
-            inv_marks_pd.columns = ['alccode', 'markcode']
-            inv_marks_pd.set_index(['alccode', ])
-        else:
-            print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
             sys.exit(1)
 
         # приводим датафреймы к вложенным словарям для удобства
@@ -267,7 +267,6 @@ def allocate_rests(invent):
             if marks:
                 outstock[alc_code] = marks
                 print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
-
 
         return rfu2_marks
 
@@ -332,7 +331,8 @@ def allocate_rests(invent):
 
         return filename, identity_counter
 
-    def generate_afbc_xml(marks: dict, fsrar_id: str, invent_id: str, template: str = 'xml/actfixbarcode.xml') -> Tuple[str, int]:
+    def generate_afbc_xml(marks: dict, fsrar_id: str, invent_id: str, template: str = 'xml/actfixbarcode.xml') -> Tuple[
+        str, int]:
         """ Формируем ActFixBarCode из посчитанных марок согласно документации п 3.8 и шаблона """
 
         tree = ET.parse(template)

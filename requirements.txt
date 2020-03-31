@@ -9,3 +9,6 @@ pycurl
 pymongo
 mysqlclient
 python-dotenv
+click
+pandas
+dotenv

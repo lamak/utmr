@@ -67,7 +67,8 @@ def allocate_rests(invent):
 
         print("PROCESSING CODES...")
         for alc_code, qty in invent_rests.items():
-            print(f'ACODE {alc_code} : {qty}')
+            if DEBUG:
+                print(f'ACODE {alc_code} : {qty}')
             result[alc_code] = {}
             rest_alc = total_rests.get(alc_code)
             # todo: check for none and qty to be int always
@@ -88,12 +89,14 @@ def allocate_rests(invent):
                             qty = 0
                 if qty > 0:
                     out_stock[alc_code] = qty
-                    print(f'- NOT DONE: {qty}')
+                    if DEBUG:
+                        print(f'- NOT DONE: {qty}')
             else:
                 out_stock[alc_code] = qty
                 print(f'WARNING {alc_code} : {qty} pcs. NOT IN RESTS AT ALL')
 
-        print(f"{'ALL DONE...' if not out_stock else f'WARNING OUT STOCK: {out_stock}'}")
+        if out_stock:
+            print(f'TOTAL OUTSTOCK CODES {len(out_stock)} : {sum(out_stock.values())} pcs. LIST: {out_stock}')
 
         return result
 
@@ -243,7 +246,7 @@ def allocate_rests(invent):
         """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
         rests = deepcopy(rests)
         rfu2_marks = {}
-        outstock = {}
+        out_stock = {}
 
         print("PROCESSING MARKS...")
         for alc_code, marks in mark_codes.items():
@@ -252,11 +255,11 @@ def allocate_rests(invent):
             if rfu2_rests is not None:
                 rfu2_total = sum(rfu2_rests.values())
                 alc_code_qty = len(marks)
+                if DEBUG:
+                    print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
 
-                print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
-
-                if rfu2_total < alc_code_qty:
-                    print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
+                    if rfu2_total < alc_code_qty:
+                        print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
 
                 for rfu, qty in rfu2_rests.items():
                     qty = int(qty)
@@ -265,8 +268,11 @@ def allocate_rests(invent):
                         marks = marks[qty:]
 
             if marks:
-                outstock[alc_code] = marks
+                out_stock[alc_code] = marks
                 print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
+
+        if out_stock:
+            print(f'TOTAL OUTSTOCK CODES {len(out_stock)} : {sum([len(m) for m in out_stock.values()])} pcs')
 
         return rfu2_marks
 

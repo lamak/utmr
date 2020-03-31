@@ -174,7 +174,7 @@ def allocate_rests(invent):
         if not rests_pd.empty:
             rests_pd.columns = ['date', 'alccode', 'f2', 'total', ]
             rests_pd.set_index(['alccode', 'f2'])
-            rests_pd.drop(columns=['date', ])
+            rests_pd = rests_pd.drop(columns=['date', ])
 
             # ttn: расход, алкокода справки и количество
             out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
@@ -222,17 +222,6 @@ def allocate_rests(invent):
             print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
             sys.exit(1)
 
-        # # собираем вместе все таблицы
-        # in_out_pd = rests_pd.merge(out_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
-        # all_pd = in_out_pd.merge(f3_pd, on=['fsrar', 'alccode', 'f2'], how='outer')
-        #
-        # # считаем общее кол-во
-        # all_pd['total'] = all_pd['quantity_x'].fillna(0) - all_pd['quantity_y'].fillna(0) - all_pd['quantity'].fillna(0)
-        #
-        # # убираем неполные результаты
-        # clean_pd = all_pd.drop(columns=['fsrar', 'date', 'quantity_x', 'quantity_y', 'quantity'])
-        # result_pd = clean_pd[clean_pd['total'] > 0]
-
         # приводим датафреймы к вложенным словарям для удобства
         counted = indexed_df_to_nested_dict(inv_pd)
         calculated = indexed_df_to_nested_dict(rests_pd)
@@ -242,7 +231,7 @@ def allocate_rests(invent):
         print(f'RESTS: CODES: {len(calculated.keys())}, RFU2: {calculated_rfu2} TOTAL QTY: {calculated_qty}')
         print(f'INVENT: CODES: {len(counted.keys())}, QTY: {sum(counted.values())}')
 
-        # приводим список марок из инвентаризации к виду {alcode: [mark, ...], ...}
+        # приводим список марок из инвентаризации к виду {alccode: [mark, ...], ...}
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
 
         return calculated, counted, invent_mark_codes

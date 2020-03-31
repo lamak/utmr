@@ -71,23 +71,27 @@ def allocate_rests(invent):
             result[alc_code] = {}
             rest_alc = total_rests.get(alc_code)
             # todo: check for none and qty to be int always
-            for f2, f2_qty in rest_alc.items():
-                if qty and f2_qty:
-                    if qty >= f2_qty:
-                        qty = qty - f2_qty
-                        rest_alc[f2] = 0
-                        result[alc_code][f2] = f2_qty
-                        if DEBUG:
-                            print(f'++ ADDED {f2} DEPLETED WITH {f2_qty}, REMAIN TO ALLOCATE {qty}')
-                    else:
-                        rest_alc[f2] = f2_qty - qty
-                        result[alc_code][f2] = qty
-                        if DEBUG:
-                            print(f'+ ADDED {f2} ACODE FULLFILED WITH {qty} (WAS {f2_qty})')
-                        qty = 0
-            if qty > 0:
+            if rest_alc is not None:
+                for f2, f2_qty in rest_alc.items():
+                    if qty and f2_qty:
+                        if qty >= f2_qty:
+                            qty = qty - f2_qty
+                            rest_alc[f2] = 0
+                            result[alc_code][f2] = f2_qty
+                            if DEBUG:
+                                print(f'++ ADDED {f2} DEPLETED WITH {f2_qty}, REMAIN TO ALLOCATE {qty}')
+                        else:
+                            rest_alc[f2] = f2_qty - qty
+                            result[alc_code][f2] = qty
+                            if DEBUG:
+                                print(f'+ ADDED {f2} ACODE FULLFILED WITH {qty} (WAS {f2_qty})')
+                            qty = 0
+                if qty > 0:
+                    out_stock[alc_code] = qty
+                    print(f'- NOT DONE: {qty}')
+            else:
                 out_stock[alc_code] = qty
-                print(f'- NOT DONE: {qty}')
+                print(f'WARNING {alc_code} : {qty} pcs. NOT IN RESTS AT ALL')
 
         print(f"{'ALL DONE...' if not out_stock else f'WARNING OUT STOCK: {out_stock}'}")
 

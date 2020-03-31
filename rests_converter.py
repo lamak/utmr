@@ -101,7 +101,7 @@ def allocate_rests(invent):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
         # список марок и их цен
         income_ttn = f"""
-        select egaisfixdate, productalccode, informbregid, quantity  from smegaisdocspec spec
+        select distinct egaisfixdate, productalccode, informbregid, quantity  from smegaisdocspec spec
         left join smegaisdocheader header on spec.glid = header.glid -- шапка с фсрарид, датой, хедером
         left join SMEGAISDOCSPECACT act on spec.glid = act.glid and spec.identity = act.identity -- марки
         where header.ourfsrarid = '{fsrar_id}' 

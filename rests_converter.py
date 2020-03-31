@@ -70,6 +70,7 @@ def allocate_rests(invent):
             print(f'ACODE {alc_code} : {qty}')
             result[alc_code] = {}
             rest_alc = total_rests.get(alc_code)
+            # todo: check for none and qty to be int always
             for f2, f2_qty in rest_alc.items():
                 if qty and f2_qty:
                     if qty >= f2_qty:
@@ -351,6 +352,28 @@ def allocate_rests(invent):
         print(f'PROCESS: {process_id} [FSRAR: {fsrar_id} STOCK: {loc_id}]')
         return fsrar_id
 
+    def generate_sql_insert_mark(marks: dict, fsrar_id: str):
+
+        """ Формируем SQL INSERT  вида {alccode: {rfu2 : [mark, ...], ...},...} """
+
+        sql = []
+        today = datetime.now().strftime("%m.%d.%y")
+        insert_header = 'INSERT_ALL'
+        into_header = 'INTO SMEGAISRESTSPIECE (OURFSRARID, MARKCODE, ALCCODE, INFORMBREGID, EXISTINGCOUNT, TTNGLID, RESTSDATE)'
+        sql.append(insert_header)
+        for acode, rests in marks.items():
+            for f2, mark in rests.items():
+                sql.append(indexed_df_to_nested_dict())
+                sql.append(f"VALUES ('{fsrar_id}', '{mark}', '{acode}', '{f2}', 1, 0, '{today}')")
+
+        sql.append('SELECT 1 FROM DUAL;')
+
+        filename = f'import_marks_{uuid4()}.sql'
+        with open(filename, "w") as outfile:
+            outfile.write("\n".join(sql))
+
+        return filename
+
     cur = setting_cursor()
 
     # получаем фсрар ид по номеру процесса инвентаризации
@@ -378,10 +401,11 @@ def allocate_rests(invent):
     # размещаем марки на алкокоды-справки
     allocated_marks = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
 
-    # формируем файл выгрузки Р2->Р1
     act_fix_barcode_filename, total_identities = generate_afbc_xml(allocated_marks, fsrar)
     print(f"ACTFIXBARCODE SAVED: {act_fix_barcode_filename}, TOTAL LISTINGS: {total_identities}")
 
+    sql_import = generate_sql_insert_mark(allocated_marks, fsrar)
+    print(f'SQL INSERT SAVED: {sql_import}')
     return transfer_from_shop_filename, act_fix_barcode_filename
 
 

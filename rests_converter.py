@@ -12,6 +12,7 @@ import click
 import cx_Oracle
 import pandas as pd
 from dotenv import load_dotenv
+from pymongo import MongoClient
 
 load_dotenv()
 
@@ -59,7 +60,7 @@ def allocate_rests(invent):
         d = {k: indexed_df_to_nested_dict(g.iloc[:, 1:]) for k, g in grouped}
         return d
 
-    def allocation_rests_on_rfu2(total_rests: dict, invent_rests: dict, ) -> dict:
+    def allocation_rests_on_rfu2(total_rests: dict, invent_rests: dict, ) -> Tuple[dict, dict]:
         """ Распределяем имеющиеся остатки (из инвентаризации, invent) на расчитанные остатки по справкам  (rests)"""
         total_rests = deepcopy(total_rests)
         result = {}
@@ -69,6 +70,7 @@ def allocate_rests(invent):
         for alc_code, qty in invent_rests.items():
             if DEBUG:
                 print(f'ACODE {alc_code} : {qty}')
+            qty = int(qty)
             result[alc_code] = {}
             rest_alc = total_rests.get(alc_code)
             # todo: check for none and qty to be int always
@@ -98,7 +100,7 @@ def allocate_rests(invent):
         if out_stock:
             print(f'TOTAL OUTSTOCK CODES {len(out_stock)} : {sum(out_stock.values())} pcs. LIST: {out_stock}')
 
-        return result
+        return result, out_stock
 
     def process_rests_data(fsrar_id: str, process_id: str):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
@@ -236,7 +238,9 @@ def allocate_rests(invent):
 
         # приводим датафреймы к вложенным словарям для удобства
         rests = indexed_df_to_nested_dict(rests_pd)
+        rests = {k: int(v) for k, v in rests.items()}
         counted = indexed_df_to_nested_dict(inv_pd)
+        counted = {k: int(v) for k, v in counted.items()}
         calculated = indexed_df_to_nested_dict(rests_rfu2_pd)
         calculated_rfu2 = sum([len(v) for v in calculated.values()])
         calculated_qty = sum([sum(v.values()) for v in calculated.values()])
@@ -249,7 +253,7 @@ def allocate_rests(invent):
 
         return rests, calculated, counted, invent_mark_codes
 
-    def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> dict:
+    def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> Tuple[dict, dict]:
         """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
         rests = deepcopy(rests)
         rfu2_marks = {}
@@ -281,7 +285,7 @@ def allocate_rests(invent):
         if out_stock:
             print(f'TOTAL OUTSTOCK CODES {len(out_stock)} : {sum([len(m) for m in out_stock.values()])} pcs')
 
-        return rfu2_marks
+        return rfu2_marks, out_stock
 
     def fill_xml_header(root: ET.Element, fsrar_id: str):
         """ Заполняем заголовки"""
@@ -436,10 +440,10 @@ def allocate_rests(invent):
     fsrar = get_fsrar_id(invent)
 
     # остатки и пересчет
-    fact_rests, calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
+    r2_rests, calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
     if DEBUG:
         print(' === R2 RESTS === ')
-        pprint(fact_rests)
+        pprint(r2_rests)
 
         print(' === RFU2 RESTS === ')
         pprint(calculated_rests)
@@ -470,29 +474,62 @@ def allocate_rests(invent):
                     print(f'WARNING NOT ENOUGH RESTS: {alc_code} DIFF QTY {lack}, MARKS {out_rests[alc_code]["marks"]}')
 
             else:
-                print(f"WARING NOT IN RESTS: {alc_code}, QTY {qty}")
+                print(f"WARNING NOT IN RESTS: {alc_code}, QTY {qty}")
         if out_rests:
             print(f'TOTAL OUTREST: CODES {len(out_rests)}, QTY {sum([v["quantity"] for v in out_rests.values()])}')
-        return invented, marks
+        return invented, marks, out_rests
+
+    r2_out_rests = {}
 
     if os.environ.get('RESTS_VALIDATION'):
-        counted_rests, counted_marks = r2_rests_control(fact_rests, counted_rests, counted_marks)
+        counted_rests, counted_marks, r2_out_rests = r2_rests_control(r2_rests, counted_rests, counted_marks)
 
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
-    allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
+    allocated_rests, rfu2_out_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
 
     # формируем файл выгрузки Р2->Р1
     transfer_from_shop_filename, total_identities = generate_tfs_xml(allocated_rests, fsrar, invent)
     print(f"TFS SAVED: {transfer_from_shop_filename}, TOTAL LISTINGS: {total_identities}")
 
     # размещаем марки на алкокоды-справки
-    allocated_marks = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
+    allocated_marks, marks_out_stock = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
 
     act_fix_barcode_filename, total_identities = generate_afbc_xml(allocated_marks, fsrar, invent)
     print(f"ACTFIXBARCODE SAVED: {act_fix_barcode_filename}, TOTAL LISTINGS: {total_identities}")
 
     sql_import = generate_sql_insert_mark(allocated_marks, fsrar, invent)
     print(f'SQL INSERT SAVED: {sql_import}')
+
+    # запишем все
+    db_record = {
+        'date': datetime.now(),
+        'fsrar': fsrar,
+        'process': invent,  # процесс инвентаризации
+        'rests_validation': bool(os.environ.get('RESTS_VALIDATION')),  # валидация посчитанного с отстатками Р2
+        'rests_r2': r2_rests,  # остатки Р2, последний ЕГАИС запрос
+        'rests_rfu2': calculated_rests,  # доступные остатки по РФУ2 справкам
+        'rests_fact': counted_rests,  # фактически посчитанное количество
+        'rests_marks': counted_marks,  # фактические марки
+        'rests_r2_lack': r2_out_rests,  # излишек посчитанного от ЕГАИС
+        'rests_rfu2_lack': rfu2_out_rests,  # излишек посчитанного от расчетных справок РФУ2
+        'rests_mark_lack': marks_out_stock,  # излишек марок
+        'total_fact_codes': len(counted_rests),  # количество алкокодов
+        'total_fact_qty': sum([int(v) for v in counted_rests.values()]),  # количество старых марок для перевода
+        'total_r2_out_codes': len(r2_out_rests),
+        'total_r2_out_qty': sum([int(v['quantity']) for v in r2_out_rests.values()]),
+        'total_rfu2_out_codes': len(rfu2_out_rests),
+        'total_rfu2_out_qty': sum([int(v) for v in rfu2_out_rests.values()]),
+    }
+
+    try:
+        with MongoClient(os.environ.get('MONGO_CONN', 'localhost:27017')) as client:
+            col = client[os.environ.get('MONGO_DB', 'utm')][os.environ.get('MONGO_COL', 'rests')]
+            col.insert_one(db_record)
+            print('RESULTS SAVED SUCCESS')
+
+    except Exception as e:
+        print(f'ERROR CANT SAVE RESULTS TO DB: {e}')
+
     return transfer_from_shop_filename, act_fix_barcode_filename
 
 

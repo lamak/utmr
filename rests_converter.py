@@ -119,7 +119,7 @@ def allocate_rests(invent):
         """
 
         return_ttn = f"""
-        select distinct productalccode,  f2regid, quantity from smegaisdocspec spec
+        select distinct productalccode,  f2regid, sum(quantity) quantity from smegaisdocspec spec
         left join smegaisdocheader header on spec.glid = header.glid
         left join smegaisdocspecf2 f2 on spec.glid=f2.glid and spec.identity = f2.identity
         where header.ourfsrarid = '{fsrar_id}' 
@@ -127,7 +127,8 @@ def allocate_rests(invent):
             and doctype = 'WBReturnFromMe' -- возвраты
             and f2regid is not Null -- обязательно указана справка 
             and spec.productvcode not in (500, 510, 520, 261, 262, 263) 
-        order by productalccode, f2regid, quantity desc
+        group by productalccode, f2regid
+        order by quantity desc, productalccode, f2regid
         """
 
         invent_data = f"""

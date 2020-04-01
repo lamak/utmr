@@ -73,7 +73,6 @@ def allocate_rests(invent):
             qty = int(qty)
             result[alc_code] = {}
             rest_alc = total_rests.get(alc_code)
-            # todo: check for none and qty to be int always
             if rest_alc is not None:
                 for f2, f2_qty in rest_alc.items():
                     if qty and f2_qty:
@@ -417,7 +416,7 @@ def allocate_rests(invent):
 
         sql = []
         today = datetime.now().strftime("%m.%d.%y")
-        header = 'INSERT_ALL'
+        header = 'INSERT ALL'
         into = 'INTO SMEGAISRESTSPIECE (OURFSRARID, MARKCODE, ALCCODE, INFORMBREGID, EXISTINGCOUNT, TTNGLID, RESTSDATE)'
         footer = 'SELECT 1 FROM DUAL;'
         sql.append(header)

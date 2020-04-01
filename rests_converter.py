@@ -196,19 +196,19 @@ def allocate_rests(invent):
             sys.exit(1)
 
         # ttn: приход, алкокода, справки, количество
-        rests_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
-        if not rests_pd.empty:
-            rests_pd.columns = ['alccode', 'f2', 'total', ]
-            rests_pd.set_index(['alccode', 'f2'])
+        rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
+        if not rests_rfu2_pd.empty:
+            rests_rfu2_pd.columns = ['alccode', 'f2', 'total', ]
+            rests_rfu2_pd.set_index(['alccode', 'f2'])
 
             # ttn: расход, алкокода справки и количество
             out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
             if not out_pd.empty:
                 out_pd.columns = ['alccode', 'f2', 'quantity']
                 out_pd.set_index(['alccode', 'f2'])
-                rests_pd = rests_pd.merge(out_pd, on=['alccode', 'f2'], how='outer')
-                rests_pd['total'] = rests_pd['total'].fillna(0) - rests_pd['quantity'].fillna(0)
-                rests_pd = rests_pd.drop(columns=['quantity', ])
+                rests_rfu2_pd = rests_rfu2_pd.merge(out_pd, on=['alccode', 'f2'], how='outer')
+                rests_rfu2_pd['total'] = rests_rfu2_pd['total'].fillna(0) - rests_rfu2_pd['quantity'].fillna(0)
+                rests_rfu2_pd = rests_rfu2_pd.drop(columns=['quantity', ])
             else:
                 print("Нет расходов по крепко алкогольной продукции")
 
@@ -217,20 +217,31 @@ def allocate_rests(invent):
             if not f3_pd.empty:
                 f3_pd.columns = ['alccode', 'f2', 'quantity']
                 f3_pd.set_index(['alccode', 'f2'])
-                rests_pd = rests_pd.merge(f3_pd, on=['alccode', 'f2'], how='outer')
-                rests_pd['total'] = rests_pd['total'].fillna(0) - rests_pd['quantity'].fillna(0)
-                rests_pd = rests_pd.drop(columns=['quantity', ])
+                rests_rfu2_pd = rests_rfu2_pd.merge(f3_pd, on=['alccode', 'f2'], how='outer')
+                rests_rfu2_pd['total'] = rests_rfu2_pd['total'].fillna(0) - rests_rfu2_pd['quantity'].fillna(0)
+                rests_rfu2_pd = rests_rfu2_pd.drop(columns=['quantity', ])
             else:
                 print("Нет помарочных остатков")
-            rests_pd = rests_pd[rests_pd['total'] > 0]
+            rests_rfu2_pd = rests_rfu2_pd[rests_rfu2_pd['total'] > 0]
 
         else:
             print("Не найдено приходов со старыми марками, продолжение невозможно")
             sys.exit(1)
 
+        # получаем остатки по Р2, чтобы не превысить доступное кол-во
+        rests_pd = pd.DataFrame.from_records(fetch_results(r2_rests, cur))
+        if not rests_pd.empty:
+            rests_pd.columns = ['alccode', 'quantity', ]
+            rests_pd.set_index(['alccode', 'f2'])
+
+        else:
+            print("Не найдено остатков продукции на Р2 для перевода, продолжение невозможно")
+            sys.exit(1)
+
         # приводим датафреймы к вложенным словарям для удобства
+        rests = indexed_df_to_nested_dict(rests_pd)
         counted = indexed_df_to_nested_dict(inv_pd)
-        calculated = indexed_df_to_nested_dict(rests_pd)
+        calculated = indexed_df_to_nested_dict(rests_rfu2_pd)
         calculated_rfu2 = sum([len(v) for v in calculated.values()])
         calculated_qty = sum([sum(v.values()) for v in calculated.values()])
 
@@ -240,7 +251,7 @@ def allocate_rests(invent):
         # приводим список марок из инвентаризации к виду {alccode: [mark, ...], ...}
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
 
-        return calculated, counted, invent_mark_codes
+        return rests, calculated, counted, invent_mark_codes
 
     def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> dict:
         """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
@@ -429,9 +440,12 @@ def allocate_rests(invent):
     fsrar = get_fsrar_id(invent)
 
     # остатки и пересчет
-    calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
+    fact_rests, calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
     if DEBUG:
-        print(' === RESTS === ')
+        print(' === R2 RESTS === ')
+        pprint(fact_rests)
+
+        print(' === RFU2 RESTS === ')
         pprint(calculated_rests)
 
         print(' === INVNT === ')

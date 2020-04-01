@@ -230,11 +230,7 @@ def allocate_rests(invent):
 
         # получаем остатки по Р2, чтобы не превысить доступное кол-во
         rests_pd = pd.DataFrame.from_records(fetch_results(r2_rests, cur))
-        if not rests_pd.empty:
-            rests_pd.columns = ['alccode', 'quantity', ]
-            rests_pd.set_index(['alccode', 'f2'])
-
-        else:
+        if rests_pd.empty:
             print("Не найдено остатков продукции на Р2 для перевода, продолжение невозможно")
             sys.exit(1)
 
@@ -454,13 +450,33 @@ def allocate_rests(invent):
         print(' === MARKS === ')
         pprint(counted_marks)
 
-    def r2_rests_control(fact_rests: dict, counted_rests: dict, counted_marks: dict):
+    def r2_rests_control(fact: dict, invented: dict, marks: dict):
         """ Проверка количества посчитанного на превышение фактических остатков на Р2,
         При превышении отсекаем лишнее (кол-во + марки), выводя в лог """
-        return counted_rests, counted_marks
+        out_rests = {}
+        for alc_code, qty in invented.items():
+            r2_qty = fact.get(alc_code)
+            if r2_qty is not None:
+                r2_qty = int(r2_qty)
+                if r2_qty < qty:
+                    lack = int(qty) - r2_qty
+                    invented[alc_code] = r2_qty
+                    out_rests[alc_code] = {
+                        'quantity': lack,
+                        'marks': marks[alc_code][r2_qty:]
+                    }
 
+                    marks[alc_code] = marks[alc_code][:r2_qty]
+                    print(f'WARNING NOT ENOUGH RESTS: {alc_code} DIFF QTY {lack}, MARKS {out_rests[alc_code]["marks"]}')
 
-    counted_rests, counted_marks = r2_rests_control(fact_rests, counted_rests, counted_marks)
+            else:
+                print(f"WARING NOT IN RESTS: {alc_code}, QTY {qty}")
+        if out_rests:
+            print(f'TOTAL OUTREST: CODES {len(out_rests)}, QTY {sum([v["quantity"] for v in out_rests.values()])}')
+        return invented, marks
+
+    if os.environ.get('RESTS_VALIDATION'):
+        counted_rests, counted_marks = r2_rests_control(fact_rests, counted_rests, counted_marks)
 
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
     allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)

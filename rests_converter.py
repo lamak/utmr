@@ -441,6 +441,10 @@ def allocate_rests(invent):
 
     # остатки и пересчет
     r2_rests, calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
+    total_r2_codes = len(r2_rests)
+    total_r2_qty = sum([int(v) for v in r2_rests.values()])
+
+    print(f"FACT RESTS CODES {len(r2_rests)}, QTY {total_r2_qty}")
     if DEBUG:
         print(' === R2 RESTS === ')
         pprint(r2_rests)
@@ -513,6 +517,8 @@ def allocate_rests(invent):
         'rests_r2_lack': r2_out_rests,  # излишек посчитанного от ЕГАИС
         'rests_rfu2_lack': rfu2_out_rests,  # излишек посчитанного от расчетных справок РФУ2
         'rests_mark_lack': marks_out_stock,  # излишек марок
+        'total_r2_codes': total_r2_codes,  # кодов на остатке
+        'total_r2_qty': total_r2_qty,  # шт на остатке Р2
         'total_fact_codes': len(counted_rests),  # количество алкокодов
         'total_fact_qty': sum([int(v) for v in counted_rests.values()]),  # количество старых марок для перевода
         'total_r2_out_codes': len(r2_out_rests),

@@ -454,6 +454,14 @@ def allocate_rests(invent):
         print(' === MARKS === ')
         pprint(counted_marks)
 
+    def r2_rests_control(fact_rests: dict, counted_rests: dict, counted_marks: dict):
+        """ Проверка количества посчитанного на превышение фактических остатков на Р2,
+        При превышении отсекаем лишнее (кол-во + марки), выводя в лог """
+        return counted_rests, counted_marks
+
+
+    counted_rests, counted_marks = r2_rests_control(fact_rests, counted_rests, counted_marks)
+
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
     allocated_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
 

@@ -400,10 +400,14 @@ def allocate_rests(invent):
                 """
 
         header_res = fetch_results(invent_header, cur)
-        fsrar_id = header_res[0][0]
-        loc_id = header_res[0][1]
-        print(f'PROCESS: {process_id} [FSRAR: {fsrar_id} STOCK: {loc_id}]')
-        return fsrar_id
+        if header_res:
+            fsrar_id = header_res[0][0]
+            loc_id = header_res[0][1]
+            print(f'PROCESS: {process_id} [FSRAR: {fsrar_id} STOCK: {loc_id}]')
+            return fsrar_id
+        else:
+            print(f'Не найден процесс инвентаризации #{process_id}, продолжение невозможно')
+            sys.exit(1)
 
     def generate_sql_insert_mark(marks: dict, fsrar_id: str, invent_id: str):
         """ Формируем SQL INSERT  вида {alccode: {rfu2 : [mark, ...], ...},...} """

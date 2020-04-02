@@ -96,9 +96,6 @@ def allocate_rests(invent):
                 out_stock[alc_code] = qty
                 print(f'WARNING {alc_code} : {qty} pcs. NOT IN RESTS AT ALL')
 
-        if out_stock:
-            print(f'TOTAL OUTSTOCK CODES {len(out_stock)} : {sum(out_stock.values())} pcs. LIST: {out_stock}')
-
         return result, out_stock
 
     def process_rests_data(fsrar_id: str, process_id: str):
@@ -281,9 +278,6 @@ def allocate_rests(invent):
             if marks:
                 out_stock[alc_code] = marks
                 print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
-
-        if out_stock:
-            print(f'TOTAL OUTSTOCK CODES {len(out_stock)} : {sum([len(m) for m in out_stock.values()])} pcs')
 
         return rfu2_marks, out_stock
 
@@ -479,8 +473,7 @@ def allocate_rests(invent):
 
             else:
                 print(f"WARNING NOT IN RESTS: {alc_code}, QTY {qty}")
-        if out_rests:
-            print(f'TOTAL OUTREST: CODES {len(out_rests)}, QTY {sum([v["quantity"] for v in out_rests.values()])}')
+
         return invented, marks, out_rests
 
     r2_out_rests = {}
@@ -488,21 +481,34 @@ def allocate_rests(invent):
     if os.environ.get('RESTS_VALIDATION'):
         counted_rests, counted_marks, r2_out_rests = r2_rests_control(r2_rests, counted_rests, counted_marks)
 
+    total_r2_outrests_codes = len(r2_out_rests)
+    total_r2_outrests_qty = sum([v["quantity"] for v in r2_out_rests.values()])
+
+    if r2_out_rests:
+        print(f'TOTAL OUTREST: CODES {total_r2_outrests_codes}, QTY {total_r2_outrests_qty}')
+
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
     allocated_rests, rfu2_out_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
 
+    total_r2_outstock_codes = len(rfu2_out_rests)
+    total_r2_outstock_qty = sum(rfu2_out_rests.values())
+
+    if rfu2_out_rests:
+        print(f'TOTAL OUTSTOCK CODES {total_r2_outstock_codes} : {total_r2_outstock_qty} pcs LIST: {rfu2_out_rests}')
+
     # формируем файл выгрузки Р2->Р1
     transfer_from_shop_filename, total_identities = generate_tfs_xml(allocated_rests, fsrar, invent)
-    print(f"TFS SAVED: {transfer_from_shop_filename}, TOTAL LISTINGS: {total_identities}")
 
     # размещаем марки на алкокоды-справки
     allocated_marks, marks_out_stock = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
 
+    if marks_out_stock:
+        print(f'TOTAL OUTSTOCK CODES {len(marks_out_stock)} : {sum([len(m) for m in marks_out_stock.values()])} pcs')
+
     act_fix_barcode_filename, total_identities = generate_afbc_xml(allocated_marks, fsrar, invent)
-    print(f"ACTFIXBARCODE SAVED: {act_fix_barcode_filename}, TOTAL LISTINGS: {total_identities}")
 
     sql_import = generate_sql_insert_mark(allocated_marks, fsrar, invent)
-    print(f'SQL INSERT SAVED: {sql_import}')
+    print(f'FILES SAVED: {transfer_from_shop_filename} {act_fix_barcode_filename} {sql_import}')
 
     # запишем все
     db_record = {
@@ -521,10 +527,10 @@ def allocate_rests(invent):
         'total_r2_qty': total_r2_qty,  # шт на остатке Р2
         'total_fact_codes': len(counted_rests),  # количество алкокодов
         'total_fact_qty': sum([int(v) for v in counted_rests.values()]),  # количество старых марок для перевода
-        'total_r2_out_codes': len(r2_out_rests),
-        'total_r2_out_qty': sum([int(v['quantity']) for v in r2_out_rests.values()]),
-        'total_rfu2_out_codes': len(rfu2_out_rests),
-        'total_rfu2_out_qty': sum([int(v) for v in rfu2_out_rests.values()]),
+        'total_r2_out_codes': total_r2_outrests_codes,
+        'total_r2_out_qty': total_r2_outrests_qty,
+        'total_rfu2_out_codes': total_r2_outstock_codes,
+        'total_rfu2_out_qty': total_r2_outstock_qty,
     }
 
     try:

@@ -102,9 +102,9 @@ def allocate_rests(invent):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
         income_ttn = f"""
         select distinct productalccode, informbregid, sum(quantity) quantity  from smegaisdocspec spec
-        left join smegaisdocheader header on spec.glid = header.glid -- шапка с фсрарид, датой, хедером
-        left join SMEGAISDOCSPECACT act on spec.glid = act.glid and spec.identity = act.identity -- марки
-        where header.ourfsrarid = '{fsrar_id}' 
+        left join smegaisdocheader hd on spec.glid = hd.glid and spec.bornin = hd.BORNIN-- шапка с фсрарид, датой, хедером
+        left join SMEGAISDOCSPECACT act on spec.glid = act.glid and spec.identity = act.identity and spec.BORNIN = act.BORNIN-- марки
+        where hd.ourfsrarid = '{fsrar_id}' 
             and docstate = 6  -- успешно завершенные
             and doctype = 'WBInvoiceToMe' -- приходные накладные от поставщика
             and informbregid is not Null -- обязательно указанием справки 
@@ -116,9 +116,9 @@ def allocate_rests(invent):
 
         return_ttn = f"""
         select distinct productalccode,  f2regid, sum(quantity) quantity from smegaisdocspec spec
-        left join smegaisdocheader header on spec.glid = header.glid
-        left join smegaisdocspecf2 f2 on spec.glid=f2.glid and spec.identity = f2.identity
-        where header.ourfsrarid = '{fsrar_id}' 
+        left join smegaisdocheader hd on spec.glid = hd.glid and spec.BORNIN = hd.BORNIN
+        left join smegaisdocspecf2 f2 on spec.glid=f2.glid and spec.identity = f2.identity and spec.BORNIN = f2.BORNIN
+        where hd.ourfsrarid = '{fsrar_id}' 
             and docstate = 17 -- завершенные
             and doctype = 'WBReturnFromMe' -- возвраты
             and f2regid is not Null -- обязательно указана справка 
@@ -128,10 +128,10 @@ def allocate_rests(invent):
         """
 
         invent_data = f"""
-        select alccode, sum(quantity) from smegaisprocessegoabheader header
-        left join SMEGAISPROCESSEGOABSPEC rst on header.processid = rst.processid and header.processtype = rst.processtype
-        where header.processid = {process_id} 
-            and header.processtype = 'EGOA' -- процесс инвентаризации крепкоалкогольной
+        select alccode, sum(quantity) from smegaisprocessegoabheader hd
+        left join SMEGAISPROCESSEGOABSPEC rst on hd.processid = rst.processid and hd.processtype = rst.processtype
+        where hd.processid = {process_id} 
+            and hd.processtype = 'EGOA' -- процесс инвентаризации крепкоалкогольной
             and length(rst.markcode) = 68 -- длина старой АМ
             AND rst.markcode not in (select markcode from SMEGAISRESTSPIECE) -- исключаем марки на Р3
         group by alccode
@@ -139,10 +139,10 @@ def allocate_rests(invent):
 
         invent_marks = f"""
         SELECT alccode, rst.markcode
-        FROM smegaisprocessegoabheader hdr 
-        LEFT JOIN smegaisprocessegoabspec rst ON hdr.processid = rst.processid AND hdr.processtype = rst.processtype
-        WHERE hdr.processid = {process_id}
-            AND hdr.processtype = 'EGOA'
+        FROM smegaisprocessegoabheader hd 
+        LEFT JOIN smegaisprocessegoabspec rst ON hd.processid = rst.processid AND hd.processtype = rst.processtype
+        WHERE hd.processid = {process_id}
+            AND hd.processtype = 'EGOA'
             AND length(rst.markcode) = 68
             AND rst.markcode not in (select markcode from SMEGAISRESTSPIECE)
         """
@@ -535,6 +535,9 @@ def allocate_rests(invent):
         'total_r2_out_qty': total_r2_outrests_qty,
         'total_rfu2_out_codes': total_r2_outstock_codes,
         'total_rfu2_out_qty': total_r2_outstock_qty,
+        'res_codes': allocated_rests,
+        'res_marks': allocated_marks,
+
     }
 
     try:

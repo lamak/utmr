@@ -330,7 +330,7 @@ def allocate_rests(invent):
                 f2_reg = ET.SubElement(f2_sec, f'{ns2}F2RegId')
                 f2_reg.text = f2
 
-            identity_counter += 1
+                identity_counter += 1
 
         filename = f'{invent_id}_tfs_{uuid4()}.xml'
 
@@ -373,7 +373,7 @@ def allocate_rests(invent):
                     mark_el = ET.SubElement(mark_info, f'{ns2}amc')
                     mark_el.text = mark
 
-            identity_counter += 1
+                identity_counter += 1
 
         filename = f'{invent_id}_actfixbarcode_{uuid4()}.xml'
 

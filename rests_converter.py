@@ -100,6 +100,21 @@ def allocate_rests(invent):
 
     def process_rests_data(fsrar_id: str, process_id: str):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
+        # приоритетный вариант, получаем кол-во переданой и возвращенной из зала продукци по РФУ2
+        tts_tfs = f"""
+        select distinct sp.PRODUCTALCCODE,
+                        sp.INFORMBREGID,
+                        SUM(CASE WHEN DOCTYPE = 'WBTransferToShop' THEN quantity ELSE -QUANTITY END) AS ttl
+        from SMEGAISDOCHEADER hd
+            left join SMEGAISDOCSPEC sp on hd.GLID = sp.GLID and hd.BORNIN = sp.BORNIN
+        where hd.OURFSRARID = '{fsrar_id}'
+            and hd.doctype in ('WBTransferFromShop', 'WBTransferToShop')
+            and hd.DOCSTATE in (32, 42)
+            and sp.PRODUCTVCODE in (500, 510, 520, 261, 262, 263)
+        GROUP BY sp.PRODUCTALCCODE, sp.INFORMBREGID;
+        order by sp.PRODUCTALCCODE, ttl desc ;
+        """
+
         income_ttn = f"""
         select distinct productalccode, informbregid, sum(quantity) quantity  from smegaisdocspec spec
         left join smegaisdocheader hd on spec.glid = hd.glid and spec.bornin = hd.BORNIN-- шапка с фсрарид, датой, хедером
@@ -194,38 +209,49 @@ def allocate_rests(invent):
             print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
             sys.exit(1)
 
-        # ttn: приход, алкокода, справки, количество
-        rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
-        if not rests_rfu2_pd.empty:
-            rests_rfu2_pd.columns = ['alccode', 'f2', 'total', ]
-            rests_rfu2_pd.set_index(['alccode', 'f2'])
-
-            # ttn: расход, алкокода справки и количество
-            out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
-            if not out_pd.empty:
-                out_pd.columns = ['alccode', 'f2', 'quantity']
-                out_pd.set_index(['alccode', 'f2'])
-                rests_rfu2_pd = rests_rfu2_pd.merge(out_pd, on=['alccode', 'f2'], how='outer')
-                rests_rfu2_pd['total'] = rests_rfu2_pd['total'].fillna(0) - rests_rfu2_pd['quantity'].fillna(0)
-                rests_rfu2_pd = rests_rfu2_pd.drop(columns=['quantity', ])
-            else:
-                print("Нет расходов по крепко алкогольной продукции")
-
-            # остатки Р3: алкокода, справки, количество
-            f3_pd = pd.DataFrame.from_records(fetch_results(f3_marks, cur))
-            if not f3_pd.empty:
-                f3_pd.columns = ['alccode', 'f2', 'quantity']
-                f3_pd.set_index(['alccode', 'f2'])
-                rests_rfu2_pd = rests_rfu2_pd.merge(f3_pd, on=['alccode', 'f2'], how='outer')
-                rests_rfu2_pd['total'] = rests_rfu2_pd['total'].fillna(0) - rests_rfu2_pd['quantity'].fillna(0)
-                rests_rfu2_pd = rests_rfu2_pd.drop(columns=['quantity', ])
-            else:
-                print("Нет помарочных остатков")
-            rests_rfu2_pd = rests_rfu2_pd[rests_rfu2_pd['total'] > 0]
+        if os.environ.get('TTS'):
+            # переводы в зал, с учетом возвратов
+            print('USING TTS')
+            rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
+            if rests_rfu2_pd.empty:
+                print("Не переводов Р1 -> Р2, продолжение невозможно")
+                sys.exit(1)
 
         else:
-            print("Не найдено приходов со старыми марками, продолжение невозможно")
-            sys.exit(1)
+            # ttn: приход, алкокода, справки, количество
+            print('USING TTN')
+
+            rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
+            if not rests_rfu2_pd.empty:
+                rests_rfu2_pd.columns = ['alccode', 'f2', 'total', ]
+                rests_rfu2_pd.set_index(['alccode', 'f2'])
+
+                # ttn: расход, алкокода справки и количество
+                out_pd = pd.DataFrame.from_records(fetch_results(return_ttn, cur))
+                if not out_pd.empty:
+                    out_pd.columns = ['alccode', 'f2', 'quantity']
+                    out_pd.set_index(['alccode', 'f2'])
+                    rests_rfu2_pd = rests_rfu2_pd.merge(out_pd, on=['alccode', 'f2'], how='outer')
+                    rests_rfu2_pd['total'] = rests_rfu2_pd['total'].fillna(0) - rests_rfu2_pd['quantity'].fillna(0)
+                    rests_rfu2_pd = rests_rfu2_pd.drop(columns=['quantity', ])
+                else:
+                    print("Нет расходов по крепко алкогольной продукции")
+
+                # остатки Р3: алкокода, справки, количество
+                f3_pd = pd.DataFrame.from_records(fetch_results(f3_marks, cur))
+                if not f3_pd.empty:
+                    f3_pd.columns = ['alccode', 'f2', 'quantity']
+                    f3_pd.set_index(['alccode', 'f2'])
+                    rests_rfu2_pd = rests_rfu2_pd.merge(f3_pd, on=['alccode', 'f2'], how='outer')
+                    rests_rfu2_pd['total'] = rests_rfu2_pd['total'].fillna(0) - rests_rfu2_pd['quantity'].fillna(0)
+                    rests_rfu2_pd = rests_rfu2_pd.drop(columns=['quantity', ])
+                else:
+                    print("Нет помарочных остатков")
+                rests_rfu2_pd = rests_rfu2_pd[rests_rfu2_pd['total'] > 0]
+
+            else:
+                print("Не найдено приходов со старыми марками, продолжение невозможно")
+                sys.exit(1)
 
         # получаем остатки по Р2, чтобы не превысить доступное кол-во
         rests_pd = pd.DataFrame.from_records(fetch_results(r2_rests, cur))
@@ -239,6 +265,7 @@ def allocate_rests(invent):
         counted = indexed_df_to_nested_dict(inv_pd)
         counted = {k: int(v) for k, v in counted.items()}
         calculated = indexed_df_to_nested_dict(rests_rfu2_pd)
+        calculated = {k: {k1: int(v1) for k1, v1 in v.items()} for k, v in calculated.items()}
         calculated_rfu2 = sum([len(v) for v in calculated.values()])
         calculated_qty = sum([sum(v.values()) for v in calculated.values()])
 

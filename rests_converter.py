@@ -440,7 +440,7 @@ def allocate_rests(invent):
         """ Формируем SQL INSERT  вида {alccode: {rfu2 : [mark, ...], ...},...} """
 
         sql = []
-        today = datetime.now().strftime("%m.%d.%y")
+        today = datetime.now().strftime("%d.%m.%y")
         header = 'INSERT ALL'
         into = 'INTO SMEGAISRESTSPIECE (OURFSRARID, MARKCODE, ALCCODE, INFORMBREGID, EXISTINGCOUNT, TTNGLID, RESTSDATE)'
         footer = 'SELECT 1 FROM DUAL;'

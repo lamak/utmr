@@ -22,7 +22,13 @@ DEBUG = os.environ.get('DEBUG')
 @click.command()
 @click.option('--invent', prompt='Process ID', help='PID')
 def allocate_rests(invent):
-    """Генерация XML перевода Р2 -> Р1 на основе имеющихся остатков и факт пересчета"""
+    """Генерация XML перевода Р2 -> Р1 на основе имеющихся остатков и факт пересчета
+    * R2 — регистр 2, торговый зал, обычно это остатки в разрезе алкокод : кол-во
+    * RFU2 — справка для перевода Р2 -> Р1, пара алкокод-рфу2 дает остаток нет в Р2, нет в Ивентаризации
+    * Invent — инвентаризация, пересчет — фактическое кол-во алкокодов и марок
+    * FSRAR — 12 значный идентификатор, строка
+    *
+    """
 
     def setting_cursor():
         oracle_host = os.environ.get('ORACLE_HOST')
@@ -63,7 +69,6 @@ def allocate_rests(invent):
     def merge_rests_dicts(current: dict, extra: dict) -> dict:
         """ Объединение текущих и дополнительных остатков """
         for code, f2_qty in extra.items():
-
             current_code = current.get(code)
             if current_code is not None:
                 # merge 2 dicts rfu2 : qty
@@ -152,6 +157,30 @@ def allocate_rests(invent):
                 print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
 
         return rfu2_marks, out_stock
+
+    def r2_rests_control(fact: dict, invented: dict, marks: dict):
+        """ Проверка количества посчитанного на превышение фактических остатков на Р2,
+        При превышении отсекаем лишнее (кол-во + марки), выводя в лог """
+        out_rests = {}
+        for alc_code, qty in invented.items():
+            r2_qty = fact.get(alc_code)
+            if r2_qty is not None:
+                r2_qty = int(r2_qty)
+                if r2_qty < qty:
+                    lack = int(qty) - r2_qty
+                    invented[alc_code] = r2_qty
+                    out_rests[alc_code] = {
+                        'quantity': lack,
+                        'marks': marks[alc_code][r2_qty:]
+                    }
+
+                    marks[alc_code] = marks[alc_code][:r2_qty]
+                    print(f'WARNING NOT ENOUGH RESTS: {alc_code} DIFF QTY {lack}, MARKS {out_rests[alc_code]["marks"]}')
+
+            else:
+                print(f"WARNING NOT IN RESTS: {alc_code}, QTY {qty}")
+
+        return invented, marks, out_rests
 
     def process_rests_data(fsrar_id: str, process_id: str):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
@@ -522,30 +551,6 @@ def allocate_rests(invent):
 
         print(' === MARKS === ')
         pprint(counted_marks)
-
-    def r2_rests_control(fact: dict, invented: dict, marks: dict):
-        """ Проверка количества посчитанного на превышение фактических остатков на Р2,
-        При превышении отсекаем лишнее (кол-во + марки), выводя в лог """
-        out_rests = {}
-        for alc_code, qty in invented.items():
-            r2_qty = fact.get(alc_code)
-            if r2_qty is not None:
-                r2_qty = int(r2_qty)
-                if r2_qty < qty:
-                    lack = int(qty) - r2_qty
-                    invented[alc_code] = r2_qty
-                    out_rests[alc_code] = {
-                        'quantity': lack,
-                        'marks': marks[alc_code][r2_qty:]
-                    }
-
-                    marks[alc_code] = marks[alc_code][:r2_qty]
-                    print(f'WARNING NOT ENOUGH RESTS: {alc_code} DIFF QTY {lack}, MARKS {out_rests[alc_code]["marks"]}')
-
-            else:
-                print(f"WARNING NOT IN RESTS: {alc_code}, QTY {qty}")
-
-        return invented, marks, out_rests
 
     r2_out_rests = {}
 

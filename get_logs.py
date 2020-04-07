@@ -163,12 +163,12 @@ def process_transport_transaction_log(u: Utm, file: str):
 
         err_to_mail = []
         with MongoClient(AppConfig.MONGO_CONN) as client:
-            db = client[AppConfig.MONGO_DB]
+            col = client[AppConfig.MONGO_DB][AppConfig.MONGO_COL_ERR]
 
             for e in errors_objects:
 
-                if not db.mark_errors.find_one({'date': e.date, 'fsrar': u.fsrar}):
-                    db.mark_errors.insert_one(vars(e))
+                if not col.find_one({'date': e.date, 'fsrar': u.fsrar}):
+                    col.insert_one(vars(e))
                     err_to_mail.append(e)
                     logging.info(f'Добавлена {u.fsrar} {e.error} {e.mark}')
 

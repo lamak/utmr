@@ -217,6 +217,23 @@ def allocate_rests(invent):
                 print("Не переводов Р1 -> Р2, продолжение невозможно")
                 sys.exit(1)
 
+            extra_tts_rests = {}
+
+            try:
+                print(f'TRYING GET EXTRA RESTS FOR {fsrar_id}')
+                with MongoClient(os.environ.get('MONGO_CONN', 'localhost:27017')) as client:
+                    col = client[os.environ.get('MONGO_DB', 'utm')][os.environ.get('MONGO_TTS', 'tts')]
+                    extra_tts_rests = col.find_one({'fsrar': {fsrar_id}})
+
+            except Exception as e:
+                print(f'CANT CONNECT TO DB NO EXTRA RESTS')
+
+            if extra_tts_rests:
+                print(f'EXTRA TTS FOUND QTY: {extra_tts_rests.get("quantity")}')
+
+                # todo: need to merge two rests dicts from current and from extra (old) store
+
+
         else:
             # ttn: приход, алкокода, справки, количество
             print('USING TTN')

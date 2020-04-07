@@ -59,7 +59,7 @@ for fsrar_id in fsrar:
     }
     try:
         with MongoClient(os.environ.get('MONGO_CONN', 'localhost:27017')) as client:
-            col = client[os.environ.get('MONGO_DB', 'utm')][os.environ.get('MONGO_COL', 'tts')]
+            col = client[os.environ.get('MONGO_DB', 'utm')][os.environ.get('MONGO_TTS', 'tts')]
             col.insert_one(record)
             print('RESTS SAVED SUCCESS')
 

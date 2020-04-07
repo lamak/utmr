@@ -212,7 +212,7 @@ def allocate_rests(invent):
         if os.environ.get('TTS'):
             # переводы в зал, с учетом возвратов
             print('USING TTS')
-            rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
+            rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(tts_tfs, cur))
             if rests_rfu2_pd.empty:
                 print("Не переводов Р1 -> Р2, продолжение невозможно")
                 sys.exit(1)

@@ -60,6 +60,30 @@ def allocate_rests(invent):
         d = {k: indexed_df_to_nested_dict(g.iloc[:, 1:]) for k, g in grouped}
         return d
 
+    def merge_rests_dicts(current: dict, extra: dict) -> dict:
+        """ Объединение текущих и дополнительных остатков """
+        for code, f2_qty in extra.items():
+
+            current_code = current.get(code)
+            if current_code is not None:
+                # merge 2 dicts rfu2 : qty
+                for extra_rfu2, extra_q in f2_qty.items():
+                    current_rfu2 = current_code.get(extra_rfu2)
+                    if current_rfu2 is not None:
+                        current_code[extra_rfu2] = extra_q + current_rfu2
+                        if DEBUG:
+                            print(f'+++ ADDED QTY {extra_q} TO {code} : {extra_rfu2}')
+                    else:
+                        current_code[extra_rfu2] = extra_q
+                        if DEBUG:
+                            print(f'++ ADDED RFU {extra_rfu2} : {extra_q} TO {code} ')
+
+            else:
+                current[code] = f2_qty
+                print(f'+ ADDED CODE {code} WITH F2 {len(f2_qty)} QTY {sum(f2_qty.values())}')
+
+        return current
+
     def allocation_rests_on_rfu2(total_rests: dict, invent_rests: dict, ) -> Tuple[dict, dict]:
         """ Распределяем имеющиеся остатки (из инвентаризации, invent) на расчитанные остатки по справкам  (rests)"""
         total_rests = deepcopy(total_rests)
@@ -97,6 +121,37 @@ def allocate_rests(invent):
                 print(f'WARNING {alc_code} : {qty} pcs. NOT IN RESTS AT ALL')
 
         return result, out_stock
+
+    def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> Tuple[dict, dict]:
+        """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
+        rests = deepcopy(rests)
+        rfu2_marks = {}
+        out_stock = {}
+
+        print("PROCESSING MARKS...")
+        for alc_code, marks in mark_codes.items():
+            rfu2_marks[alc_code] = {}
+            rfu2_rests = rests.get(alc_code)
+            if rfu2_rests is not None:
+                rfu2_total = sum(rfu2_rests.values())
+                alc_code_qty = len(marks)
+                if DEBUG:
+                    print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
+
+                    if rfu2_total < alc_code_qty:
+                        print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
+
+                for rfu, qty in rfu2_rests.items():
+                    qty = int(qty)
+                    if marks and qty:
+                        rfu2_marks[alc_code][rfu] = marks[:qty]
+                        marks = marks[qty:]
+
+            if marks:
+                out_stock[alc_code] = marks
+                print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
+
+        return rfu2_marks, out_stock
 
     def process_rests_data(fsrar_id: str, process_id: str):
         """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
@@ -209,6 +264,8 @@ def allocate_rests(invent):
             print("В инвентаризации нет алкококодов со старыми марками, продолжение невозможно")
             sys.exit(1)
 
+        extra_tts_rests = {}
+
         if os.environ.get('TTS'):
             # переводы в зал, с учетом возвратов
             print('USING TTS')
@@ -217,22 +274,14 @@ def allocate_rests(invent):
                 print("Не переводов Р1 -> Р2, продолжение невозможно")
                 sys.exit(1)
 
-            extra_tts_rests = {}
-
             try:
                 print(f'TRYING GET EXTRA RESTS FOR {fsrar_id}')
                 with MongoClient(os.environ.get('MONGO_CONN', 'localhost:27017')) as client:
                     col = client[os.environ.get('MONGO_DB', 'utm')][os.environ.get('MONGO_TTS', 'tts')]
-                    extra_tts_rests = col.find_one({'fsrar': {fsrar_id}})
+                    extra_tts_rests = col.find_one({'fsrar': fsrar_id})
 
             except Exception as e:
                 print(f'CANT CONNECT TO DB NO EXTRA RESTS')
-
-            if extra_tts_rests:
-                print(f'EXTRA TTS FOUND QTY: {extra_tts_rests.get("quantity")}')
-
-                # todo: need to merge two rests dicts from current and from extra (old) store
-
 
         else:
             # ttn: приход, алкокода, справки, количество
@@ -283,6 +332,11 @@ def allocate_rests(invent):
         counted = {k: int(v) for k, v in counted.items()}
         calculated = indexed_df_to_nested_dict(rests_rfu2_pd)
         calculated = {k: {k1: int(v1) for k1, v1 in v.items()} for k, v in calculated.items()}
+
+        if extra_tts_rests:
+            print(f'EXTRA TTS FOUND QTY: {extra_tts_rests.get("quantity")}')
+            calculated = merge_rests_dicts(calculated, extra_tts_rests.get("rests"))
+
         calculated_rfu2 = sum([len(v) for v in calculated.values()])
         calculated_qty = sum([sum(v.values()) for v in calculated.values()])
 
@@ -293,37 +347,6 @@ def allocate_rests(invent):
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
 
         return rests, calculated, counted, invent_mark_codes
-
-    def allocate_mark_codes_to_rfu2(rests: dict, mark_codes: dict) -> Tuple[dict, dict]:
-        """ Распределяем марки на справки РФУ2, вида {alccode: {rfu2 : [mark, ...], ...},...} """
-        rests = deepcopy(rests)
-        rfu2_marks = {}
-        out_stock = {}
-
-        print("PROCESSING MARKS...")
-        for alc_code, marks in mark_codes.items():
-            rfu2_marks[alc_code] = {}
-            rfu2_rests = rests.get(alc_code)
-            if rfu2_rests is not None:
-                rfu2_total = sum(rfu2_rests.values())
-                alc_code_qty = len(marks)
-                if DEBUG:
-                    print(f'ACODE: {alc_code}, MARKS {alc_code_qty}, RFU2s: {len(rfu2_rests)}, AVL: {rfu2_total}')
-
-                    if rfu2_total < alc_code_qty:
-                        print(f'WARNING AVL: {rfu2_total}, REQUIRED {alc_code_qty}')
-
-                for rfu, qty in rfu2_rests.items():
-                    qty = int(qty)
-                    if marks and qty:
-                        rfu2_marks[alc_code][rfu] = marks[:qty]
-                        marks = marks[qty:]
-
-            if marks:
-                out_stock[alc_code] = marks
-                print(f'WARNING OUTSTOCK {alc_code} with {len(marks)}: {marks}')
-
-        return rfu2_marks, out_stock
 
     def fill_xml_header(root: ET.Element, fsrar_id: str):
         """ Заполняем заголовки"""

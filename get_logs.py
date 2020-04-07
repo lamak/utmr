@@ -5,7 +5,7 @@ import smtplib
 from datetime import datetime
 from email.header import Header
 from email.mime.text import MIMEText
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from pymongo import MongoClient
 
@@ -137,9 +137,8 @@ def check_file_exist(utm: Utm, filename: str):
     return filename
 
 
-def send_email(subject: str, text: str, mail_from: str = 'balega_aa@remi.ru', mail_to: str = 'balega_aa@remi.ru'):
+def send_email(subject: str, text: str, mail_from: Union[str, list], mail_to: str):
     """ Отправка сообщений об ошибках """
-
     msg = MIMEText(text, 'plain', 'utf-8')
     msg['Subject'] = Header(subject, 'utf-8')
     msg['From'] = mail_from

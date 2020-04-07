@@ -158,12 +158,12 @@ def allocate_rests(invent):
 
         return rfu2_marks, out_stock
 
-    def r2_rests_control(fact: dict, invented: dict, marks: dict):
+    def r2_rests_control(r2: dict, invented: dict, marks: dict) -> Tuple[dict, dict, dict]:
         """ Проверка количества посчитанного на превышение фактических остатков на Р2,
         При превышении отсекаем лишнее (кол-во + марки), выводя в лог """
         out_rests = {}
         for alc_code, qty in invented.items():
-            r2_qty = fact.get(alc_code)
+            r2_qty = r2.get(alc_code)
             if r2_qty is not None:
                 r2_qty = int(r2_qty)
                 if r2_qty < qty:
@@ -182,9 +182,22 @@ def allocate_rests(invent):
 
         return invented, marks, out_rests
 
-    def process_rests_data(fsrar_id: str, process_id: str):
-        """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт """
-        # приоритетный вариант, получаем кол-во переданой и возвращенной из зала продукци по РФУ2
+    def process_rests_data(fsrar_id: str, process_id: str) -> Tuple[dict, dict, dict, dict]:
+        """ Получаем остатки и пересчет из Oracle, обрабатываем и возвращаем словари доступны остатки, факт
+
+         Описание процесса:
+         1. Получаем РФУ2 остатки по TransferToShop - TransferFromShop
+           1.1 Опционально подгружаем остатки сохраненные из другого хранилища
+           1.2 Если TTS-TFS не в полном объемЕ, получаем из разница TTN приход - расход - марки
+         2. Сверяем полученные РФУ2 остатки с фактом Р2, лишнее вывводим в лог, отсекаем
+         3. С РФУ2 остатками сопоставляем инвентаризацию
+         4. Формируем TransferFromShop Р2 -> Р1
+         5. Формируем ActBarCodeFix для фиксации марок на Р3
+         6. Формируетм SQL Insert для отображения посчитанных марок в Супермаге
+
+         Шаги 5,6 опциональны, если расхожедний не выявлено, можно обновить остатки и закончить в Супермаг
+        """
+
         tts_tfs = f"""
         select distinct sp.PRODUCTALCCODE,
                         sp.INFORMBREGID,
@@ -226,7 +239,7 @@ def allocate_rests(invent):
         order by quantity desc, productalccode, f2regid
         """
 
-        invent_data = f"""
+        invent_codes = f"""
         select alccode, sum(quantity) from smegaisprocessegoabheader hd
         left join SMEGAISPROCESSEGOABSPEC rst on hd.processid = rst.processid and hd.processtype = rst.processtype
         where hd.processid = {process_id} 
@@ -246,7 +259,7 @@ def allocate_rests(invent):
             AND rst.markcode not in (select markcode from SMEGAISRESTSPIECE)
         """
 
-        r2_rests = f"""
+        rests_r2_codes = f"""
         SELECT alccode, quantity
         FROM smegaisrests
         WHERE ourfsrarid = {fsrar_id} 
@@ -254,28 +267,15 @@ def allocate_rests(invent):
             and productvcode NOT IN (500, 510, 520, 261, 262, 263) -- (слабоалкогольная продукция)
             """
 
-        f3_marks = f"""
+        rests_r3_marks = f"""
         select alccode, informbregid, count(markcode) from SMEGAISRESTSPIECE
         where ourfsrarid = '{fsrar_id}'
         group by alccode, informbregid
         order by informbregid, alccode
         """
-        # Описание процесса:
-        # 1. Получаем остатки по TTN приход, в разрезе алкокод-справка-количество (завершенные, со справками, крепкий алкоголь)
-        # 2. Вычитаем TTN расходы
-        # 3. Вычитаем помарочные остатки
-        # 4. С полученными остатками сопоставляем инвентаризацию (марки 68 символов, не числящиеся на помарочном учете)
-        # 5. Формируем TransferFromShop Р2 -> Р1
-        # 6. Формируем ActBarCodeFix для фиксации марок на Р3
-        # 7. Формируетм SQL Insert для отображения посчитанных марок в Супермаге
-        #
-        # Шаги 6,7 опциональны, т.к. можно обновить остатки на Р1, и закончить штатно инвентаризацию в Супермаге
-        # тем самым зафиксировов Р3 в ЕГАИС и в Супермаг
-        #
-        # Любые данные могут быть опциональн, их может не быть, это надо обрабатывать
 
         # инвентаризация: алкокода и количество
-        inv_pd = pd.DataFrame.from_records(fetch_results(invent_data, cur))
+        inv_pd = pd.DataFrame.from_records(fetch_results(invent_codes, cur))
         if not inv_pd.empty:
             inv_pd.columns = ['alccode', 'quantity']
             inv_pd.set_index(['alccode'])
@@ -315,7 +315,6 @@ def allocate_rests(invent):
         else:
             # ttn: приход, алкокода, справки, количество
             print('USING TTN')
-
             rests_rfu2_pd = pd.DataFrame.from_records(fetch_results(income_ttn, cur))
             if not rests_rfu2_pd.empty:
                 rests_rfu2_pd.columns = ['alccode', 'f2', 'total', ]
@@ -333,7 +332,7 @@ def allocate_rests(invent):
                     print("Нет расходов по крепко алкогольной продукции")
 
                 # остатки Р3: алкокода, справки, количество
-                f3_pd = pd.DataFrame.from_records(fetch_results(f3_marks, cur))
+                f3_pd = pd.DataFrame.from_records(fetch_results(rests_r3_marks, cur))
                 if not f3_pd.empty:
                     f3_pd.columns = ['alccode', 'f2', 'quantity']
                     f3_pd.set_index(['alccode', 'f2'])
@@ -349,33 +348,33 @@ def allocate_rests(invent):
                 sys.exit(1)
 
         # получаем остатки по Р2, чтобы не превысить доступное кол-во
-        rests_pd = pd.DataFrame.from_records(fetch_results(r2_rests, cur))
-        if rests_pd.empty:
+        rests_r2_pd = pd.DataFrame.from_records(fetch_results(rests_r2_codes, cur))
+        if rests_r2_pd.empty:
             print("Не найдено остатков продукции на Р2 для перевода, продолжение невозможно")
             sys.exit(1)
 
         # приводим датафреймы к вложенным словарям для удобства
-        rests = indexed_df_to_nested_dict(rests_pd)
-        rests = {k: int(v) for k, v in rests.items()}
-        counted = indexed_df_to_nested_dict(inv_pd)
-        counted = {k: int(v) for k, v in counted.items()}
-        calculated = indexed_df_to_nested_dict(rests_rfu2_pd)
-        calculated = {k: {k1: int(v1) for k1, v1 in v.items()} for k, v in calculated.items()}
+        rests_r2 = indexed_df_to_nested_dict(rests_r2_pd)
+        rests_r2 = {k: int(v) for k, v in rests_r2.items()}
+        rests_fact = indexed_df_to_nested_dict(inv_pd)
+        rests_fact = {k: int(v) for k, v in rests_fact.items()}
+        rests_rfu2 = indexed_df_to_nested_dict(rests_rfu2_pd)
+        rests_rfu2 = {k: {k1: int(v1) for k1, v1 in v.items()} for k, v in rests_rfu2.items()}
 
         if extra_tts_rests:
             print(f'EXTRA TTS FOUND QTY: {extra_tts_rests.get("quantity")}')
-            calculated = merge_rests_dicts(calculated, extra_tts_rests.get("rests"))
+            rests_rfu2 = merge_rests_dicts(rests_rfu2, extra_tts_rests.get("rests"))
 
-        calculated_rfu2 = sum([len(v) for v in calculated.values()])
-        calculated_qty = sum([sum(v.values()) for v in calculated.values()])
+        rfu2_count = sum([len(v) for v in rests_rfu2.values()])
+        rfu2_quantity = sum([sum(v.values()) for v in rests_rfu2.values()])
 
-        print(f'RESTS: CODES: {len(calculated.keys())}, RFU2: {calculated_rfu2} TOTAL QTY: {calculated_qty}')
-        print(f'INVENT: CODES: {len(counted.keys())}, QTY: {sum(counted.values())}')
+        print(f'RESTS: CODES: {len(rests_rfu2.keys())}, RFU2: {rfu2_count} TOTAL QTY: {rfu2_quantity}')
+        print(f'INVENT: CODES: {len(rests_fact.keys())}, QTY: {sum(rests_fact.values())}')
 
         # приводим список марок из инвентаризации к виду {alccode: [mark, ...], ...}
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
 
-        return rests, calculated, counted, invent_mark_codes
+        return rests_r2, rests_rfu2, rests_fact, invent_mark_codes
 
     def fill_xml_header(root: ET.Element, fsrar_id: str):
         """ Заполняем заголовки"""
@@ -534,7 +533,7 @@ def allocate_rests(invent):
     fsrar = get_fsrar_id(invent)
 
     # остатки и пересчет
-    r2_rests, calculated_rests, counted_rests, counted_marks = process_rests_data(fsrar, invent)
+    r2_rests, rfu_rests, fact_rests, fact_marks = process_rests_data(fsrar, invent)
     total_r2_codes = len(r2_rests)
     total_r2_qty = sum([int(v) for v in r2_rests.values()])
 
@@ -544,18 +543,18 @@ def allocate_rests(invent):
         pprint(r2_rests)
 
         print(' === RFU2 RESTS === ')
-        pprint(calculated_rests)
+        pprint(rfu_rests)
 
         print(' === INVNT === ')
-        pprint(counted_rests)
+        pprint(fact_rests)
 
         print(' === MARKS === ')
-        pprint(counted_marks)
+        pprint(fact_marks)
 
     r2_out_rests = {}
 
     if os.environ.get('RESTS_VALIDATION'):
-        counted_rests, counted_marks, r2_out_rests = r2_rests_control(r2_rests, counted_rests, counted_marks)
+        fact_rests, fact_marks, r2_out_rests = r2_rests_control(r2_rests, fact_rests, fact_marks)
 
     total_r2_outrests_codes = len(r2_out_rests)
     total_r2_outrests_qty = sum([v["quantity"] for v in r2_out_rests.values()])
@@ -564,7 +563,7 @@ def allocate_rests(invent):
         print(f'TOTAL OUTREST: CODES {total_r2_outrests_codes}, QTY {total_r2_outrests_qty}')
 
     # размещаем результаты инвентаризации на остатки по алкокодам-справкам
-    allocated_rests, rfu2_out_rests = allocation_rests_on_rfu2(calculated_rests, counted_rests)
+    allocated_rests, rfu2_out_rests = allocation_rests_on_rfu2(rfu_rests, fact_rests)
 
     total_r2_outstock_codes = len(rfu2_out_rests)
     total_r2_outstock_qty = sum(rfu2_out_rests.values())
@@ -576,7 +575,7 @@ def allocate_rests(invent):
     transfer_from_shop_filename, total_identities = generate_tfs_xml(allocated_rests, fsrar, invent)
 
     # размещаем марки на алкокоды-справки
-    allocated_marks, marks_out_stock = allocate_mark_codes_to_rfu2(calculated_rests, counted_marks)
+    allocated_marks, marks_out_stock = allocate_mark_codes_to_rfu2(rfu_rests, fact_marks)
 
     if marks_out_stock:
         print(f'TOTAL OUTSTOCK CODES {len(marks_out_stock)} : {sum([len(m) for m in marks_out_stock.values()])} pcs')
@@ -593,16 +592,16 @@ def allocate_rests(invent):
         'process': invent,  # процесс инвентаризации
         'rests_validation': bool(os.environ.get('RESTS_VALIDATION')),  # валидация посчитанного с отстатками Р2
         'rests_r2': r2_rests,  # остатки Р2, последний ЕГАИС запрос
-        'rests_rfu2': calculated_rests,  # доступные остатки по РФУ2 справкам
-        'rests_fact': counted_rests,  # фактически посчитанное количество
-        'rests_marks': counted_marks,  # фактические марки
+        'rests_rfu2': rfu_rests,  # доступные остатки по РФУ2 справкам
+        'rests_fact': fact_rests,  # фактически посчитанное количество
+        'rests_marks': fact_marks,  # фактические марки
         'rests_r2_lack': r2_out_rests,  # излишек посчитанного от ЕГАИС
         'rests_rfu2_lack': rfu2_out_rests,  # излишек посчитанного от расчетных справок РФУ2
         'rests_mark_lack': marks_out_stock,  # излишек марок
         'total_r2_codes': total_r2_codes,  # кодов на остатке
         'total_r2_qty': total_r2_qty,  # шт на остатке Р2
-        'total_fact_codes': len(counted_rests),  # количество алкокодов
-        'total_fact_qty': sum([int(v) for v in counted_rests.values()]),  # количество старых марок для перевода
+        'total_fact_codes': len(fact_rests),  # количество алкокодов
+        'total_fact_qty': sum([int(v) for v in fact_rests.values()]),  # количество старых марок для перевода
         'total_r2_out_codes': total_r2_outrests_codes,
         'total_r2_out_qty': total_r2_outrests_qty,
         'total_rfu2_out_codes': total_r2_outstock_codes,

@@ -207,7 +207,7 @@ def allocate_rests(invent):
         where hd.OURFSRARID = '{fsrar_id}'
             and hd.doctype in ('WBTransferFromShop', 'WBTransferToShop')
             and hd.DOCSTATE in (32, 42)
-            and sp.PRODUCTVCODE in (500, 510, 520, 261, 262, 263)
+            and sp.PRODUCTVCODE not in (500, 510, 520, 261, 262, 263)
         GROUP BY sp.PRODUCTALCCODE, sp.INFORMBREGID
         order by sp.PRODUCTALCCODE, ttl desc
         """

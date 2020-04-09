@@ -68,6 +68,8 @@ def allocate_rests(invent):
 
     def merge_rests_dicts(current: dict, extra: dict) -> dict:
         """ Объединение текущих и дополнительных остатков """
+        print(f'ORIGIN RESTS QTY {sum([sum(x.values()) for x in current.values()])}')
+        print(f'EXTRA  RESTS QTY {sum([sum(x.values()) for x in extra.values()])}')
         for code, f2_qty in extra.items():
             current_code = current.get(code)
             if current_code is not None:
@@ -85,7 +87,9 @@ def allocate_rests(invent):
 
             else:
                 current[code] = f2_qty
-                print(f'+ ADDED CODE {code} WITH F2 {len(f2_qty)} QTY {sum(f2_qty.values())}')
+                if DEBUG:
+                    print(f'+ ADDED CODE {code} WITH F2 {len(f2_qty)} QTY {sum(f2_qty.values())}')
+        print(f'TOTAL  RESTS QTY {sum([sum(x.values()) for x in current.values()])}')
 
         return current
 
@@ -356,7 +360,7 @@ def allocate_rests(invent):
         # приводим датафреймы к вложенным словарям для удобства
         rests_r2 = indexed_df_to_nested_dict(rests_r2_pd)
         rests_r2 = {k: int(v) for k, v in rests_r2.items()}
-        rests_fact = indexed_df_to_nested_dict(inv_pd)
+        rests_fact = indexed_df_to_nested_dict(rests_r2_pd if os.environ.get('RST') else inv_pd)
         rests_fact = {k: int(v) for k, v in rests_fact.items()}
         rests_rfu2 = indexed_df_to_nested_dict(rests_rfu2_pd)
         rests_rfu2 = {k: {k1: int(v1) for k1, v1 in v.items()} for k, v in rests_rfu2.items()}
@@ -368,8 +372,8 @@ def allocate_rests(invent):
         rfu2_count = sum([len(v) for v in rests_rfu2.values()])
         rfu2_quantity = sum([sum(v.values()) for v in rests_rfu2.values()])
 
-        print(f'RESTS: CODES: {len(rests_rfu2.keys())}, RFU2: {rfu2_count} TOTAL QTY: {rfu2_quantity}')
-        print(f'INVENT: CODES: {len(rests_fact.keys())}, QTY: {sum(rests_fact.values())}')
+        print(f'AVAILABLE RFU2: CODES: {len(rests_rfu2.keys())}, RFU2: {rfu2_count} TOTAL QTY: {rfu2_quantity}')
+        print(f'FACT INVENTED: CODES: {len(rests_fact.keys())}, QTY: {sum(rests_fact.values())}')
 
         # приводим список марок из инвентаризации к виду {alccode: [mark, ...], ...}
         invent_mark_codes = inv_marks_pd.groupby('alccode')['markcode'].apply(list).to_dict()
@@ -537,7 +541,7 @@ def allocate_rests(invent):
     total_r2_codes = len(r2_rests)
     total_r2_qty = sum([int(v) for v in r2_rests.values()])
 
-    print(f"FACT RESTS CODES {len(r2_rests)}, QTY {total_r2_qty}")
+    print(f"EGAIS R2 RESTS: CODES: {len(r2_rests)}, QTY: {total_r2_qty}")
     if DEBUG:
         print(' === R2 RESTS === ')
         pprint(r2_rests)

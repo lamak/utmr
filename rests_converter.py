@@ -213,7 +213,7 @@ def allocate_rests(invent):
             and hd.DOCSTATE in (32, 42)
             and sp.PRODUCTVCODE not in (500, 510, 520, 261, 262, 263)
         GROUP BY sp.PRODUCTALCCODE, sp.INFORMBREGID
-        order by sp.PRODUCTALCCODE, ttl desc
+        order by sp.PRODUCTALCCODE, ttl desc, sp.INFORMBREGID desc
         """
 
         income_ttn = f"""

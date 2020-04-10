@@ -49,4 +49,4 @@ class AppConfig(object):
     MAIL_PASS = os.environ.get('MAIL_PASS', '')
     MAIL_HOST = os.environ.get('MAIL_HOST', '')
     MAIL_FROM = os.environ.get('MAIL_FROM', '')
-    MAIL_TO = [address.strip() for address in os.environ.get('MAIL_TO', '').split(',')]
+    MAIL_TO = os.environ.get('MAIL_TO', '')

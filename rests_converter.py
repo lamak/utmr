@@ -1,6 +1,5 @@
 import os
 import sys
-import xml.dom.minidom
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 from datetime import datetime
@@ -11,6 +10,7 @@ from uuid import uuid4
 import click
 import cx_Oracle
 import pandas as pd
+import xml.dom.minidom
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
@@ -183,6 +183,10 @@ def allocate_rests(invent):
 
             else:
                 print(f"WARNING NOT IN RESTS: {alc_code}, QTY {qty}")
+
+        for k, v in invented.items():
+            if not v:
+                del invented[k]
 
         return invented, marks, out_rests
 

@@ -35,7 +35,7 @@ class Utm:
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
     """
 
-    def __init__(self, fsrar, host, title, path, ukm, active: bool = True):
+    def __init__(self, fsrar, host, title, path, ukm, active: bool = False):
         self.fsrar = fsrar
         self.host = host
         self.title = title
@@ -143,8 +143,7 @@ class Configs:
     def create_update_current(self, utm):
         element = next((u for u in self.all_utms if u.fsrar == utm.fsrar), None)
         if element:
-            self.utms.remove(element)
-
+            self.all_utms.remove(element)
         self.utms.append(utm)
 
     def create_update_storage(self, utm):
@@ -1040,10 +1039,10 @@ def upload_file():
                 try:
                     df = pd.read_excel(
                         io=filename,
-                        na_filter=False,                                # не проверяет на попадание в список NaN
+                        na_filter=False,  # не проверяет на попадание в список NaN
                         sheet_name='Sheet1',
-                        usecols=['SKU', 'Код склада'],                  # только 2 поля
-                        converters={'SKU': str, 'Код склада': int},     # типы для полей
+                        usecols=['SKU', 'Код склада'],  # только 2 поля
+                        converters={'SKU': str, 'Код склада': int},  # типы для полей
                     )
                     results = df.groupby('Код склада')['SKU'].apply(list).to_dict()
                 except Exception as e:
@@ -1061,12 +1060,12 @@ def upload_file():
                         warehouse_articles = pd.read_csv(
                             filepath_or_buffer=exp_filepath,
                             sep='¦',
-                            header=None,            # без шапки, включая 1 строку
-                            usecols=[0, ],          # первое поле с данным
-                            squeeze=True,           # т.к. 1 поле, то ужимаем в лист
-                            engine='python',        # для корректной обработки разделителя
-                            encoding='utf-8',       # обязательно, т.к разделитель
-                            converters={0: str}     # поле как строка
+                            header=None,  # без шапки, включая 1 строку
+                            usecols=[0, ],  # первое поле с данным
+                            squeeze=True,  # т.к. 1 поле, то ужимаем в лист
+                            engine='python',  # для корректной обработки разделителя
+                            encoding='utf-8',  # обязательно, т.к разделитель
+                            converters={0: str}  # поле как строка
                         ).to_list()
                         results[warehouse] = warehouse_articles
 

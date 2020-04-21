@@ -973,7 +973,7 @@ def get_tickets():
     form = TicketForm()
     form.fsrar.choices = cfg.utm_choices()
     form.search.data = request.args.get('res')
-    form.limit.data = int(request.args.get('res', 1000))
+    form.limit.data = int(request.args.get('limit', 1000))
     form.fsrar.data = int(request.args.get('fsrar', 0))
 
     params = {

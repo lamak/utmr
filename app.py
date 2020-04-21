@@ -972,6 +972,10 @@ def get_rests():
 def get_tickets():
     form = TicketForm()
     form.fsrar.choices = cfg.utm_choices()
+    form.search.data = request.args.get('res')
+    form.limit.data = int(request.args.get('res', 1000))
+    form.fsrar.data = int(request.args.get('fsrar', 0))
+
     params = {
         'template_name_or_list': 'ticket.html',
         'title': 'Поиск квитанций обмена',

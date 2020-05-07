@@ -95,6 +95,7 @@ ENV/
 utmr.egg-info/
 utmr/__pycache__/
 utmr/env/
+.vscode/
 
 # logs
 log

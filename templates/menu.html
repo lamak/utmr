@@ -8,8 +8,8 @@
                     <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true"
                        aria-expanded="false">TTN<span class="caret"></span></a>
                     <ul class="dropdown-menu">
-                        <li><a href="{{ url_for('ttn') }}">Повторно Запросить TTN</a></li>
-                        <li><a href="{{ url_for('reject') }}">Отклонить TTN</a></li>
+                        <li><a href="{{ url_for('resend_ttn') }}">Повторно Запросить TTN</a></li>
+                        <li><a href="{{ url_for('reject_ttn') }}">Отклонить TTN</a></li>
                         <li role="separator" class="divider"></li>
                         <li><a href="{{ url_for('check_nattn') }}">Необработанные TTN</a></li>
                         <li role="separator" class="divider"></li>
@@ -19,8 +19,8 @@
                     </ul>
                 </li>
 
-                <li><a href="{{ url_for('cheque') }}">Чек</a></li>
-                <li><a href="{{ url_for('get_tickets') }}" title="Проверка квитанций (tickets) обмена">Тикеты</a></li>
+                <li><a href="{{ url_for('send_cheque') }}">Чек</a></li>
+                <li><a href="{{ url_for('get_tickets') }}" title="Проверка квитанций (tickets)">Квитанции</a></li>
                 <li><a href="{{ url_for('get_rests') }}" title="Сводка остатков по последним запросам">Остатки</a></li>
                 <li><a href="{{ url_for('check_mark') }}" title="Запрос состояния">Марка</a></li>
                 <li class="dropdown">
@@ -28,14 +28,14 @@
                        aria-expanded="false">Ошибки<span class="caret"></span></a>
                     <ul class="dropdown-menu">
                         <li><a href="{{ url_for('get_utm_errors') }}" title="За сегодня">Сегодня</a></li>
-                        <li><a href="{{ url_for('view_errors') }}" title="За все время">Статистика</a></li>
+                        <li><a href="{{ url_for('get_utm_error_stats') }}" title="За все время">Статистика</a></li>
                         </li>
                     </ul>
                 </li>
             </ul>
 
             <ul class="nav navbar-nav navbar-right">
-                <li><a href="{{ url_for('service_clean') }}" title="Удаление TTNFORMREG справок">Очистка</a></li>
+                <li><a href="{{ url_for('cleanup_utm') }}" title="Удаление TTNFORMREG справок">Очистка</a></li>
                 <li><a href="{{ url_for('list_utm') }}" title="Список, добавление, изменение">Список УТМ</a></li>
             </ul>
         </div><!--/.nav-collapse -->

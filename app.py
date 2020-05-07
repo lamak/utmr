@@ -34,7 +34,7 @@ class MongoStorage(ABC):
     @classmethod
     def _get_all(cls, **kwargs):
         flt = {} if kwargs is None else kwargs
-        return list(mongo.db[cls.__name__.lower()].find(flt))
+        return mongo.db[cls.__name__.lower()].find(flt)
 
     @classmethod
     def _get_one(cls, **kwargs):
@@ -80,8 +80,12 @@ class Utm(MongoStorage):
         return [Utm(**u) for u in cls._get_all(active=True)]
 
     @classmethod
+    def get_ordered(cls, ordering):
+        return [Utm(**u) for u in cls._get_all(active=True).sort(ordering)]
+
+    @classmethod
     def utm_choices(cls):
-        return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in cls.get_active()]
+        return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in cls.get_ordered('title')]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -393,8 +397,8 @@ def index():
     return redirect(url_for('status'))
 
 
-@app.route('/ttn', methods=['GET', 'POST'])
-def ttn():
+@app.route('/ttn/resend', methods=['GET', 'POST'])
+def resend_ttn():
     form = TTNForm()
     form.fsrar.choices = Utm.utm_choices()
     params = {
@@ -424,8 +428,8 @@ def ttn():
     return render_template(**params)
 
 
-@app.route('/reject', methods=['GET', 'POST'])
-def reject():
+@app.route('/ttn/reject', methods=['GET', 'POST'])
+def reject_ttn():
     form = TTNForm()
     form.fsrar.choices = Utm.utm_choices()
     params = {
@@ -462,7 +466,7 @@ def reject():
     return render_template(**params)
 
 
-@app.route('/request_repeal', methods=['GET', 'POST'])
+@app.route('/ttn/request_repeal', methods=['GET', 'POST'])
 def request_repeal():
     form = RequestRepealForm()
     form.fsrar.choices = Utm.utm_choices()
@@ -514,7 +518,7 @@ def request_repeal():
     return render_template(**params)
 
 
-@app.route('/confirm_repeal', methods=['GET', 'POST'])
+@app.route('/ttn/confirm_repeal', methods=['GET', 'POST'])
 def confirm_repeal():
     form = WBRepealConfirmForm()
     form.fsrar.choices = Utm.utm_choices()
@@ -559,7 +563,7 @@ def confirm_repeal():
     return render_template(**params)
 
 
-@app.route('/check_nattn', methods=['GET', 'POST'])
+@app.route('/ttn/check_nattn', methods=['GET', 'POST'])
 def check_nattn():
     form = FsrarForm()
     form.fsrar.choices = Utm.utm_choices()
@@ -606,8 +610,8 @@ def check_nattn():
     return render_template(**params)
 
 
-@app.route('/service_clean', methods=['GET', 'POST'])
-def service_clean():
+@app.route('/service', methods=['GET', 'POST'])
+def cleanup_utm():
     def clean(utm: Utm):
         # todo: внести clean_documents
         try:
@@ -641,7 +645,7 @@ def service_clean():
 
 
 @app.route('/cheque', methods=['GET', 'POST'])
-def cheque():
+def send_cheque():
     form = ChequeForm()
     form.fsrar.choices = Utm.utm_choices()
     params = {
@@ -748,8 +752,7 @@ def get_utm_errors():
 
         for u in utm:
             transport_log = u.log_dir() + log_name
-            transport_log = 'transport_transaction.log'
-            utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
+            utm_header = f'{u.title} <a target="_blank" href="{url_for(get_utm_errors)}?fsrar={u.fsrar}">{u.fsrar}</a> '
 
             errors_found, checks, err = parse_log_for_errors(transport_log)
             errors_objects = parse_errors(errors_found, u)
@@ -832,7 +835,7 @@ def get_tickets():
         limit = request.form['limit'].strip()
         limit = int(limit) if limit.isdigit() and int(limit) < 5000 else 1000
         utm = Utm.get_one(fsrar=request.form['fsrar'])
-        form.fsrar.data = utm.fsrar
+        form.fsrar.data = int(utm.fsrar)
 
         for root, dirs, files in os.walk(utm.path):
             files = [fi for fi in files if fi.find("Ticket") > 0]
@@ -908,17 +911,18 @@ def edit_utm(utm_id):
 
 @app.route('/status', methods=['GET', 'POST'])
 def status():
-    ordering = request.args.get('ordering', 'title')
+    ordering = request.args.get('ordering', 'error')
     form = StatusSelectOrder()
     form.ordering.data = ordering
+    ordering_direction = -1 if ordering == 'error' else 1
 
     params = {
         'template_name_or_list': 'status.html',
-        'title': 'Статус (новый)',
+        'title': 'Статус',
         'description': 'Результат последней проверки УТМ',
         'ord': ordering,
         'form': form,
-        'results': mongo.db.result.find({'last': True}).sort(ordering, 1)
+        'results': mongo.db.result.find({'active': True}).sort(ordering, ordering_direction)
     }
 
     update_filter = request.form.get('filter')
@@ -941,8 +945,8 @@ def test_utm():
            '<sign>1F4F407419A4CFDDD8B8A359B9AE2CE9E793F4E5057BB924321923E5A2C2184BE6F61A77932</sign><ver>2</ver></A>'
 
 
-@app.route('/view_errors', methods=['GET'])
-def view_errors():
+@app.route('/utm/stats', methods=['GET'])
+def get_utm_error_stats():
     def add_default_choice(choices: list) -> list:
         choices.insert(0, (0, 'Выберите...'))
         return choices

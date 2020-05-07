@@ -64,7 +64,7 @@ def parse_errors(errors: list, utm: Utm) -> List[dict]:
 
         elif isinstance(err_marks, list):
             for m in err_marks:
-                template_result['mark'] = mark
+                template_result['mark'] = m
                 lst.append(template_result)
 
         else:
@@ -96,7 +96,7 @@ def parse_errors(errors: list, utm: Utm) -> List[dict]:
                 add_mark(parsed_entries, dt, title, fsrar, r[0], marks)
 
             else:
-                _, title, error_line = message.split(':')
+                _, _, error_line = message.split(':')
                 split_results = error_line.split(',')
                 for mark_res in split_results:
                     mark, description = get_marks_from_errors(mark_res)
@@ -136,8 +136,8 @@ def send_email(subject: str, text: str, mail_from: Union[str, list], mail_to: st
 
 def process_transport_transaction_log(u: Utm, file: str):
     """ Сохранение ошибок из файла журнала транзакций УТМ в MongoDB и отправка писем """
-    # file = get_log_file(u, file)
-    file = 'transport_transaction.log'
+    file = get_log_file(u, file)
+
     if file is not None:
         from app import mongo
 

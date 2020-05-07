@@ -2,13 +2,16 @@
 {% block body %}
     {% if error %}
         <p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<form action="" method="get" name="send" role="form">
-    <label for="ordering">Сортировка</label>
-    <p>{{ form.ordering(class="form-control") }}</p>
-    <input type="submit" value="Выполнить" class="btn btn-primary">
+    <form action="" method="get" name="send" role="form">
+        <div class="row">
+            <div class="col-xs-10">
+                {{ form.ordering(class="form-control") }}
+            </div>
+            <div class="col-xs-1">
+                <input type="submit" value="Упорядочить" class="btn btn-primary">
+            </div>
+        </div>
     </form>
     {% if results %}
-        {% include 'status_table.html' %}
-
-    {% endif %}
+        {% include 'status_table.html' %}{% endif %}
 {% endblock %}

@@ -1,3 +1,4 @@
+<hr>
 <table class="table table-hover">
     <thead>
     <tr>
@@ -16,54 +17,55 @@
     </thead>
     <tbody>
     {% for u in results %}
-        <tr>
-            <td><a href="{{ u['url'] }}">{{ u['title'] }}</a></td>
+        <tr {% if u['error']|length != 0 %} class="warning" {% endif %} }}>
+            <td><a href="{{ u['url'] }}">{{ u['title'][:36] }}{% if u['title']|length > 36 %}...{% endif %}</a></td>
             <td title="{{ u['build'] }}">{{ u['host'] }}</td>
             <td title="{{ u['date'] }}">{{ u['fsrar'] }}</td>
-            <td title="{{ u['surname'] }}">{{ u['legal'] }}</td>
+            <td title="{{ u['legal'] }}">{{ u['legal'][:15] }}{% if u['legal']|length > 15 %}...{% endif %}</td>
             <td title="{{ u['surname'] }} {{ u['given_name'] }}">{{ u['surname'] }}</td>
 
             <td title="{{ u['pki'] }}">{{ u['gost'] }}</td>
             <td>
                 {% if u['cheques'] == 'OK' %}
-                    <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
+                    <img src="{{ url_for('static', filename='check.svg') }}" alt="OK">
                 {% else %}
-                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
+                    <img src="{{ url_for('static', filename='excl.svg') }}" alt="WARNING">
                     {{ u['cheques'] }} {% endif %}
             </td>
 
             <td>
                 {% if u['status'] == True %}
-                    <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
+                    <img src="{{ url_for('static', filename='check.svg') }}" alt="OK">
                 {% else %}
-                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
+                    <img src="{{ url_for('static', filename='excl.svg') }}" alt="WARNING">
                 {% endif %}
             </td>
 
             <td>
                 {% if u['license'] == True %}
-                    <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
+                    <img src="{{ url_for('static', filename='check.svg') }}" alt="OK">
                 {% else %}
-                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING">
+                    <img src="{{ url_for('static', filename='excl.svg') }}" alt="WARNING">
                 {% endif %}
             </td>
 
             <td>
                 {% if u['filter'] == True %}
-                    <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK">
+                    <img src="{{ url_for('static', filename='check.svg') }}" alt="OK">
                 {% else %}
                     <form action="" method="post" name="send" role="form">
                         <input type="hidden" name="filter" value="{{ u['fsrar'] }}">
-                        <input type="image" src="{{ url_for('static', filename='warn24.png') }}" title="Обновить" alt="Обновить">
+                        <input type="image" src="{{ url_for('static', filename='excl.svg') }}" title="Обновить"
+                               alt="Обновить">
                     </form>
                 {% endif %}
             </td>
             <td>
                 {% if u['error']|length == 0 %}
-                    <img src="{{ url_for('static', filename='ok24.png') }}" alt="OK"
+                    <img src="{{ url_for('static', filename='check.svg') }}" alt="OK"
                          title="{{ u['error'] }}">
                 {% else %}
-                    <img src="{{ url_for('static', filename='warn24.png') }}" alt="WARNING"
+                    <img src="{{ url_for('static', filename='excl.svg') }}" alt="WARNING"
                          title="{{ u['error'] }}">
                     </td>
                 {% endif %}

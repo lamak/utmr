@@ -752,7 +752,7 @@ def get_utm_errors():
 
         for u in utm:
             transport_log = u.log_dir() + log_name
-            utm_header = f'{u.title} <a target="_blank" href="{url_for(get_utm_errors())}?fsrar={u.fsrar}">{u.fsrar}</a> '
+            utm_header = f'{u.title} <a target="_blank" href="{url_for("get_utm_errors")}?fsrar={u.fsrar}">{u.fsrar}</a> '
 
             errors_found, checks, err = parse_log_for_errors(transport_log)
             errors_objects = parse_errors(errors_found, u)

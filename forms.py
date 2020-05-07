@@ -61,6 +61,7 @@ class CreateUpdateUtm(FlaskForm):
     ukm = StringField('ukm', validators=[DataRequired()])
     active = BooleanField('active')
     path = StringField('path')
+    _id = StringField('_id')
 
 
 class StatusSelectOrder(FlaskForm):

@@ -1,23 +1,18 @@
-import copy
-import inspect
 import logging
 import os
-import re
 import uuid
 import xml.etree.ElementTree as ET
+from abc import ABC
 from datetime import date, datetime, timedelta
-from typing import Optional, List
+from typing import Optional, Iterable
 
 import MySQLdb
 import requests
 import xmltodict
+from bson import ObjectId
 from bson.son import SON
 from flask import Flask, Markup, flash, request, redirect, url_for, render_template
-from grab import Grab
-from grab.error import GrabCouldNotResolveHostError, GrabConnectionError, GrabTimeoutError
-from pymongo import MongoClient, DESCENDING
-from pymongo.database import Database
-from weblib.error import DataNotFound
+from flask_pymongo import PyMongo
 
 from forms import FsrarForm, RestsForm, TicketForm, CreateUpdateUtm, StatusSelectOrder, MarkFormError, \
     MarkForm, ChequeForm, WBRepealConfirmForm, RequestRepealForm, TTNForm
@@ -25,26 +20,90 @@ from forms import FsrarForm, RestsForm, TicketForm, CreateUpdateUtm, StatusSelec
 app = Flask(__name__)
 app.config.from_object('config.AppConfig')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY')
+app.config['MONGO_URI'] = os.environ.get('MONGO_URI')
+
+mongo = PyMongo(app)
 
 
-class Utm:
+class MongoStorage(ABC):
+    def __init__(self, **kwargs):
+        _id = kwargs.get('_id')
+        if _id is not None:
+            self._id = _id
+
+    @classmethod
+    def _get_all(cls, **kwargs):
+        flt = {} if kwargs is None else kwargs
+        return list(mongo.db[cls.__name__.lower()].find(flt))
+
+    @classmethod
+    def _get_one(cls, **kwargs):
+        flt = {} if kwargs is None else kwargs
+        return mongo.db[cls.__name__.lower()].find_one(flt)
+
+    def _cleaned(self):
+        data = {k: v for k, v in vars(self).items() if v is not None}
+        data.pop('_id', None)
+        return data
+
+    def _update(self):
+        # todo: update creates new instance
+        mongo.db[self.__class__.__name__.lower()].replace_one({'_id': ObjectId(self._id)}, self._cleaned())
+
+    def _create(self):
+        mongo.db[self.__class__.__name__.lower()].insert_one(self._cleaned())
+
+    @classmethod
+    def _archive(cls):
+        return mongo.db[cls.__name__.lower()].update_many({}, {'$set': {'active': False}})
+
+    @classmethod
+    def _save_many(cls, results):
+        return mongo.db[cls.__name__.lower()].insert_many(results)
+
+
+class Utm(MongoStorage):
     """ УТМ
     Включает в себя название, адрес сервера, заголовок-адрес, путь к XML обмену Супермага
     """
 
-    def __init__(self, fsrar, host, title, path, ukm, active: bool = False):
-        self.fsrar = fsrar
-        self.host = host
-        self.title = title
-        self.path = path or f'{app.config["DEFAULT_XML_PATH"]}{host.split("-")[0]}/in/'
-        self.ukm = ukm
-        self.active: bool = bool(active)
+    @classmethod
+    def get_one(cls, **kwargs):
+        return Utm(**cls._get_one(**kwargs))
+
+    @classmethod
+    def get_all(cls):
+        return [Utm(**u) for u in cls._get_all()]
+
+    @classmethod
+    def get_active(cls):
+        return [Utm(**u) for u in cls._get_all(active=True)]
+
+    @classmethod
+    def utm_choices(cls):
+        return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in cls.get_active()]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.ukm: str = kwargs.get('ukm')
+        self.host: str = kwargs.get('host')
+        self.fsrar: str = kwargs.get('fsrar')
+        self.title: str = kwargs.get('title')
+        self.path: str = kwargs.get('path', self._get_path())
+        self.active: bool = kwargs.get('active', False)
 
     def __str__(self):
         return f'{self.fsrar} {self.title}'
 
     def __repr__(self):
         return f'{self.fsrar} {self.title}'
+
+    @property
+    def clean(self):
+        return self._cleaned()
+
+    def _get_path(self):
+        return f'{app.config["DEFAULT_XML_PATH"]}{self.host.split("-")[0]}/in/'
 
     def url(self):
         return f'http://{self.host}.{app.config["LOCAL_DOMAIN"]}:{app.config["UTM_PORT"]}'
@@ -76,14 +135,11 @@ class Utm:
     def log_dir(self):
         return f'//{self.host}.{app.config["LOCAL_DOMAIN"]}/{app.config["UTM_LOG_PATH"]}'
 
-    def to_csv(self):
-        return ';'.join(vars(self).values()) + '\n'
-
-    def to_dict(self):
-        return vars(self)
+    def create_or_update(self):
+        return self._update() if self._id is None else self._create()
 
 
-class Result:
+class Result(MongoStorage):
     """ Результаты опроса УТМ
     С главной страницы получаем:
     * Состояние УТМ и лицензии
@@ -96,8 +152,25 @@ class Result:
 
     """
 
-    def __init__(self, **kwargs):
-        self.utm: Optional[Utm] = kwargs.get('utm')  # fsrar, server, title
+    @classmethod
+    def save_many(cls, results: Iterable['Result']):
+        cls._archive()
+        return cls._save_many([vars(r) for r in results])
+
+    @classmethod
+    def add_many(cls, results: Iterable[dict]):
+        cls._archive()
+        return cls._save_many(results)
+
+    def __init__(self, utm=None, **kwargs):
+        super().__init__(**kwargs)
+
+        if utm is not None:
+            self.fsrar: str = utm.fsrar
+            self.host: str = utm.host
+            self.url: str = utm.url()
+            self.title: str = utm.title
+
         self.legal: str = kwargs.get('legal', '')
         self.surname: str = kwargs.get('surname', '')
         self.given_name: str = kwargs.get('given_name', '')
@@ -107,132 +180,23 @@ class Result:
         self.status: bool = kwargs.get('status', False)
         self.licence: bool = kwargs.get('licence', False)
         self.error: list = kwargs.get('errors', [])
-        self.fsrar: str = kwargs.get('fsrar', self.utm.fsrar if self.utm else '')
-        self.host: str = kwargs.get('host', self.utm.host if self.utm else '')
-        self.url: str = kwargs.get('url', self.utm.url() if self.utm else '')
-        self.title: str = kwargs.get('title', self.utm.title if self.utm else '')
         self.filter: bool = kwargs.get('filter', False)
         self.docs_in: int = kwargs.get('docs_in', 0)
         self.docs_out: int = kwargs.get('docs_out', 0)
         self.version: str = kwargs.get('cheques', '')
         self.change_set: str = kwargs.get('cheques', '')
-        self.build: str = kwargs.get('cheques', '')
-        self.date = kwargs.get('cheques', datetime.utcnow())
-
-    def to_dictionary(self):
-        tmp_dict = copy.deepcopy(vars(self))
-        tmp_dict['last'] = True
-        del tmp_dict['utm']
-        return tmp_dict
-
-
-class Configs:
-    def __init__(self, database: Optional[Database]):
-        self.use_db = bool(app.config['UTM_USE_DB'])
-        self.config = app.config['UTM_CONFIG']
-        self.db = database
-        self.all_utms = self.get_utm_list()
-        self.utms = [utm for utm in self.all_utms if utm.active]
-
-    def utm_choices(self):
-        return [(u.fsrar, f'{u.title} [{u.fsrar}] [{u.host}]') for u in self.utms]
-
-    def create_update_current(self, utm):
-        element = next((u for u in self.all_utms if u.fsrar == utm.fsrar), None)
-        if element:
-            self.all_utms.remove(element)
-        self.utms.append(utm)
-
-    def create_update_storage(self, utm):
-        self.create_update_utm_db(utm) if self.use_db else self.create_update_config_utm(utm)
-
-    def create_or_update_utm(self, utm: Utm):
-        self.create_update_current(utm)
-        self.create_update_storage(utm)
-
-    def get_utm_list(self):
-        """ Выбор источника УТМ, при отсутствии в БД будет попытка заполнить из файла """
-        if self.use_db:
-            utms = self.get_utm_from_db()
-            if not utms:
-                self.import_utms_to_db()
-            return self.get_utm_from_db()
-        else:
-            return self.get_utm_from_file()
-
-    def get_utm_from_db(self):
-        """ Получение списка УТМ из MongoDB """
-
-        return [Utm(**remove_id(u)) for u in self.db.utm.find().sort('title', 1)]
-
-    def get_utm_from_file(self):
-        """ Получение списка УТМ из файла настроек """
-        utms = []
-        try:
-            with open(self.config, 'r', encoding='utf-8') as config_file:
-                utms = [Utm(*u.split(';')) for u in config_file.read().splitlines()]
-                utms.sort(key=lambda utm: utm.title)
-        except FileNotFoundError as e:
-            logging.error(e)
-        return utms
-
-    def create_update_utm_db(self, utm: Utm):
-        """ Создание или обновление УТМ в MongoDB"""
-        query = {'fsrar': utm.fsrar}
-        if not self.db.utm.find_one(query):
-            self.db.utm.insert_one(vars(utm))
-            logging.info(f'Добавлен УТМ {utm}')
-        else:
-            self.db.utm.update_one(query, {
-                '$set': vars(utm)
-            }, upsert=False)
-            logging.info(f'Обновлен УТМ {utm}')
-
-    def import_utms_to_db(self):
-        """ Импорт УТМ из файла настроек в MongoDB """
-        utms = self.get_utm_from_file()
-        utms.sort(key=lambda utm: utm.fsrar)
-        [self.create_update_utm_db(u) for u in utms]
-
-    def create_update_config_utm(self, utm: Utm):
-        """ Создание или обновление конфиг файла """
-        if os.path.isfile(self.config):
-            with open(self.config, 'r') as file:
-                lines = file.read().splitlines()
-
-            with open(self.config, 'w') as file:
-                for line in lines:
-                    if line.split(';')[0] != utm.fsrar:
-                        file.write(line + '\n')
-                file.write(utm.to_csv())
-        else:
-            with open(self.config, 'w') as file:
-                file.write(utm.to_csv())
-
-
-def remove_id(dictionary):
-    """ Удаление идентификатора MongoDB """
-    tmp_dict = dict(dictionary)
-    del tmp_dict['_id']
-    return tmp_dict
+        self.build: str = kwargs.get('build', '')
+        self.date = kwargs.get('date', datetime.utcnow())
+        self.active = True
 
 
 def get_xml_template(filename: str) -> str:
     return os.path.join('xml/', filename)
 
 
-def get_instance(fsrar: str) -> Optional[Utm]:
-    """ Получаем УТМ из формы по ФСРАР ИД"""
-    return next((x for x in cfg.utms if x.fsrar == fsrar), None)
-
-
 def get_limit(field: str, max_limit: int, default_limit: int) -> int:
     """ Лимитер, валидирует поле или устанавливает значение по умолчанию """
     return int(field) if field.isdigit() and int(field) < max_limit else default_limit
-
-
-def last_date(date_string: str):
-    return re.findall('\d{4}-\d{2}-\d{2}', date_string)[-1]
 
 
 def humanize_date(iso_date: str) -> str:
@@ -242,103 +206,6 @@ def humanize_date(iso_date: str) -> str:
         iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S')
 
     return (iso_date + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M')
-
-
-def parse_utm(utm: Utm):
-    result = Result(utm=utm)
-    div_inc = 0
-    homepage, gostpage = Grab(), Grab()
-
-    try:
-        homepage.go(utm.build_url())
-        gostpage.go(utm.gost_url())
-        # версия
-        try:
-            result.version = homepage.doc.select('//*[@id="home"]/div[1]/div[2]').text()
-            result.change_set = homepage.doc.select('//*[@id="home"]/div[2]/div[2]').text()
-            result.build = homepage.doc.select('//*[@id="home"]/div[3]/div[2]').text()
-        except DataNotFound:
-            result.error.append('Не найдена информация о версии\n')
-
-        # ИД
-        try:
-            fsrar_id = homepage.doc.select('//*[@id="RSA"]/div[2]').text()
-            if utm.fsrar != fsrar_id.split(' ')[1].split('-')[2].split('_')[0]:
-                result.error.append('ФСРАР не соответствует\n')
-        except DataNotFound:
-            result.error.append('Не найден ФСРАР ид\n')
-
-        # Самодиагностика
-        try:
-            status_string = homepage.doc.select('//*[@id="home"]/div[4]/div[2]').text()
-            result.status = 'RSA сертификат pki.fsrar.ru соответствует контуру' == status_string
-            # если сатус не соотвествует указанному,значит появился блок Проблема с RSA и нумерация блоков увеличилась
-            div_inc = not result.status
-            license_string = homepage.doc.select(f'//*[@id="home"]/div[{5 + div_inc}]/div[2]').text()
-            filter_string = homepage.doc.select('//*[@id="filterMsgDiv"]').text()
-            result.filter = 'Обновление настроек не требуется' == filter_string
-            result.license = 'Лицензия на вид деятельности действует' == license_string
-
-        except DataNotFound:
-            result.error.append('Не найдены все элементы на странице\n')
-
-        # ключи
-        try:
-            gost_string = homepage.doc.select(f'//*[@id="home"]/div[{9 + div_inc}]/div[2]').text()
-            pki_string = homepage.doc.select(f'//*[@id="home"]/div[{8 + div_inc}]/div[2]').text()
-            result.pki = last_date(pki_string)
-            result.gost = last_date(gost_string)
-        except (IndexError, DataNotFound):
-            result.error.append('Не найдены сроки ключей\n')
-
-        # Дата отправки последнего чека не должна быть старше одного дня
-        try:
-            cheque_string = homepage.doc.select(f'// *[@id="home"]/div[{7 + div_inc}]/div[2]').text()
-            today = datetime.strftime(datetime.now(), "%Y-%m-%d")
-
-            if cheque_string == 'Отсутствуют неотправленные чеки':
-                result.cheques = 'OK'
-            elif last_date(cheque_string) == today:
-                result.cheques = 'OK'
-            else:
-                result.cheques = last_date(cheque_string)
-        except Exception as e:
-            result.error.append(f'Проблема с отправкой чеков: {e}\n')
-
-        try:
-            pre = gostpage.doc.select('//pre').text()
-            cn = re.compile(r'(?<=CN=)[^,]*')
-            name = re.compile(r'(?<=GIVENNAME=)[^,]*')
-            surname = re.compile(r'(?<=SURNAME=)[^,]*')
-
-            cn_res = cn.search(pre)
-            if cn_res is not None:
-                result.legal = cn_res.group().replace('"', '').replace('\\', '').replace('ООО', '')[0:20]
-
-            surname_res = surname.search(pre)
-            if surname_res is not None:
-                result.surname = surname_res.group()
-
-            name_res = name.search(pre)
-            if name_res is not None:
-                result.given_name = name_res.group()
-
-        except Exception as e:
-            result.error.append(f'Не найден сертификат организации{e}\n')
-
-    # не удалось соединиться
-    except GrabTimeoutError:
-        result.error.append('Нет связи: время истекло')
-
-    except GrabCouldNotResolveHostError:
-        result.error.append('Нет связи: не найден сервер')
-
-    except GrabConnectionError:
-        result.error.append('Нет связи: ошибка подключения')
-
-    result.error = ' '.join(result.error)
-
-    return result
 
 
 def create_unique_xml(fsrar: str, content: str, path: str) -> str:
@@ -425,7 +292,7 @@ def parse_reply_nattn(url: str):
                 date_list.append(elem.text)
             for elem in tree.iter('{http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN}ttnNumber'):
                 doc_list.append(elem.text)
-            for i, ttn in enumerate(ttn_list):
+            for i, _ in enumerate(ttn_list):
                 nattn_list.append([ttn_list[i], date_list[i], doc_list[i]])
         except requests.exceptions.RequestException as e:
             flash('Ошибка получения списка ReplyNoAnswerTTN', url)
@@ -506,33 +373,19 @@ def process_errors(errors: list, full: bool, ukm: str):
     """
     current_marks = []
     current_results = []
-    for e in errors:
 
+    for e in errors:
+        mark, date, err = e['mark'], e['date'], e['error']
         # Вывести марки без дублей
-        if e.mark not in current_marks:
+        if mark not in current_marks:
             # Опционально вывести чеки по маркам
-            cheques = get_cheques_from_ukm(ukm, e.mark) if full and e.mark is not None else []
-            mark_text_result = compose_error_result(e.date, e.mark, e.error, cheques)
+            cheques = get_cheques_from_ukm(ukm, mark) if full and mark is not None else []
+
+            mark_text_result = compose_error_result(date, mark, err, cheques)
             current_results.append(mark_text_result)
-            current_marks.append(e.mark)
+            current_marks.append(e['mark'])
 
     return current_results, len(current_marks)
-
-
-def grab_utm_check_results_to_db(utms: List[Utm], col: Database):
-    results: List[Result] = [parse_utm(utm) for utm in utms]
-    results_to_dict = [res.to_dictionary() for res in results]
-    save_results_to_db(results_to_dict, col)
-    return results_to_dict
-
-
-def save_results_to_db(results: List[dict], col: Database):
-    try:
-        col.update_many({}, {'$set': {'last': False}})
-        col.insert_many(results)
-
-    except Exception as e:
-        logging.info(f"Не удалось записать результаты в БД: {e}")
 
 
 @app.route('/')
@@ -543,7 +396,7 @@ def index():
 @app.route('/ttn', methods=['GET', 'POST'])
 def ttn():
     form = TTNForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'ttn.html',
         'title': 'Повторный запрос TTN',
@@ -556,7 +409,7 @@ def ttn():
         xml = get_xml_template(file)
 
         wbregid = request.form['wbregid'].strip()
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         query = create_unique_xml(utm.fsrar, wbregid, xml)
@@ -574,7 +427,7 @@ def ttn():
 @app.route('/reject', methods=['GET', 'POST'])
 def reject():
     form = TTNForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'reject.html',
         'title': 'Отозвать или отклонить TTN',
@@ -587,7 +440,7 @@ def reject():
         filepath = get_xml_template(file)
 
         wbregid = request.form['wbregid'].strip()
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         url = utm.url() + '/opt/in/WayBillAct_v3'
@@ -612,7 +465,7 @@ def reject():
 @app.route('/request_repeal', methods=['GET', 'POST'])
 def request_repeal():
     form = RequestRepealForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'request_repeal.html',
         'description': 'Запрос распроведения накладной и отмена актов постановки списания со склада',
@@ -639,7 +492,7 @@ def request_repeal():
         filepath = get_xml_template(repeal_data['file'])
         wbregid = request.form['wbregid'].strip()
         request_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         url = utm.url() + repeal_data['url']
         form.fsrar.data = utm.fsrar
         form.r_type.data = repeal_type
@@ -664,7 +517,7 @@ def request_repeal():
 @app.route('/confirm_repeal', methods=['GET', 'POST'])
 def confirm_repeal():
     form = WBRepealConfirmForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'wbrepealconfirm.html',
         'title': 'Подтверждение распроведения TTN',
@@ -677,7 +530,7 @@ def confirm_repeal():
         filepath = get_xml_template(file)
         wbregid = request.form['wbregid'].strip()
         is_confirm = request.form['is_confirm']
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.is_confirm.data = request.form['is_confirm']
         form.fsrar.data = utm.fsrar
 
@@ -709,7 +562,7 @@ def confirm_repeal():
 @app.route('/check_nattn', methods=['GET', 'POST'])
 def check_nattn():
     form = FsrarForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'check_nattn.html',
         'title': 'Необработанные TTN',
@@ -718,7 +571,7 @@ def check_nattn():
     }
 
     if request.method == 'POST':
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.fsrar.data = utm.fsrar
         if 'check' in request.form:
             ttn_list = parse_reply_nattn(find_last_nattn(utm.url()))
@@ -736,7 +589,7 @@ def check_nattn():
             file = 'nattn.xml'
             xml = get_xml_template(file)
 
-            utm = get_instance(request.form['fsrar'])
+            utm = Utm.get_one(fsrar=request.form['fsrar'])
             form.fsrar.data = utm.fsrar
 
             url = utm.url() + '/opt/in/QueryNATTN'
@@ -763,7 +616,7 @@ def service_clean():
             return utm.title, f'недоступен {e}'
 
     form = FsrarForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'service.html',
         'title': 'Удаление Форм 2 из УТМ',
@@ -774,12 +627,12 @@ def service_clean():
     if request.method == 'POST':
         results = []
         if 'select' in request.form:
-            utm = get_instance(request.form['fsrar'])
+            utm = Utm.get_one(fsrar=request.form['fsrar'])
             results.append(clean(utm))
             form.fsrar.data = utm.fsrar
 
         elif 'all' in request.form:
-            for utm in cfg.utms:
+            for utm in Utm.get_active():
                 results.append(clean(utm))
 
         params['results'] = results
@@ -790,7 +643,7 @@ def service_clean():
 @app.route('/cheque', methods=['GET', 'POST'])
 def cheque():
     form = ChequeForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'cheque.html',
         'description': 'Ручная отправка чеков на возврат',
@@ -798,7 +651,7 @@ def cheque():
         'form': form,
     }
     if request.method == 'POST':
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
 
         # creating document with cheque header attributes
         document = ET.Element('Cheque')
@@ -837,7 +690,7 @@ def cheque():
 @app.route('/mark', methods=['GET', 'POST'])
 def check_mark():
     form = MarkForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'mark.html',
         'title': 'Проверка марок УТМ',
@@ -850,7 +703,7 @@ def check_mark():
         xml = get_xml_template(file)
         url_suffix = '/opt/in/QueryFilter'
         mark = request.form['mark'].strip()
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         query = create_unique_mark_xml(utm.fsrar, mark, xml)
@@ -871,10 +724,10 @@ def check_mark():
     return render_template(**params)
 
 
-@app.route('/utm_logs', methods=['GET', 'POST'])
+@app.route('/utm/logs', methods=['GET', 'POST'])
 def get_utm_errors():
     form = FsrarForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     form.fsrar.data = request.args.get('fsrar')
     params = {
         'template_name_or_list': 'utm_log.html',
@@ -891,10 +744,11 @@ def get_utm_errors():
         form.fsrar.data = request.form['fsrar']
 
         all_utm = request.form.get('all', False)
-        utm = cfg.utms if all_utm else [get_instance(request.form['fsrar']), ]
+        utm = Utm.get_active() if all_utm else [Utm.get_one(fsrar=request.form['fsrar']), ]
 
         for u in utm:
             transport_log = u.log_dir() + log_name
+            transport_log = 'transport_transaction.log'
             utm_header = f'{u.title} [<a target="_blank" href="/utm_logs?fsrar={u.fsrar}">{u.fsrar}</a>] '
 
             errors_found, checks, err = parse_log_for_errors(transport_log)
@@ -914,7 +768,7 @@ def get_utm_errors():
 @app.route('/rests', methods=['GET', 'POST'])
 def get_rests():
     form = RestsForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     params = {
         'template_name_or_list': 'rests.html',
         'title': 'Поиск остатков в обмене',
@@ -928,7 +782,7 @@ def get_rests():
 
         search_alc_code = request.form['alc_code'].strip()
         limit = get_limit(request.form['limit'], 50, 10)
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         for root, dirs, files in os.walk(utm.path):
@@ -959,7 +813,7 @@ def get_rests():
 @app.route('/ticket', methods=['GET', 'POST'])
 def get_tickets():
     form = TicketForm()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     form.search.data = request.args.get('res')
     form.limit.data = int(request.args.get('limit', 1000))
     form.fsrar.data = int(request.args.get('fsrar', 0))
@@ -977,7 +831,7 @@ def get_tickets():
         doc = request.form['search'].strip()
         limit = request.form['limit'].strip()
         limit = int(limit) if limit.isdigit() and int(limit) < 5000 else 1000
-        utm = get_instance(request.form['fsrar'])
+        utm = Utm.get_one(fsrar=request.form['fsrar'])
         form.fsrar.data = utm.fsrar
 
         for root, dirs, files in os.walk(utm.path):
@@ -998,104 +852,83 @@ def get_tickets():
     return render_template(**params)
 
 
-@app.route('/add_utm', methods=['GET', 'POST'])
-def add_utm():
-    def create_utm_from_request_form(request_form) -> Utm:
-        """ Создание Utm инстанса из формы запроса"""
-        signature = inspect.signature(Utm.__init__)
-        args = signature.parameters.keys()
-        return Utm(**{parameter: request_form.get(parameter) for parameter in request_form if parameter in args})
-
-    form = CreateUpdateUtm()
+@app.route('/utm/list', methods=['GET', ])
+def list_utm():
     params = {
-        'template_name_or_list': 'add_utm.html',
-        'title': 'Добавление УТМ',
-        'form': form
+        'title': 'Список УТМ',
+        'results': Utm.get_all(),
+        'template_name_or_list': 'utm_list.html',
+    }
+
+    return render_template(**params)
+
+
+@app.route('/utm/add', methods=['GET', 'POST'])
+def add_utm():
+    params = {
+        'template_name_or_list': 'utm.html',
+        'form': CreateUpdateUtm(),
+        'title': 'Новый УТМ',
     }
 
     if request.method == 'POST':
-        new_utm = create_utm_from_request_form(request.form)
-        cfg.create_or_update_utm(new_utm)
+        data = dict(request.form)
+        result = mongo.db.utm.insert_one(data).inserted_id
+        return redirect(url_for('edit_utm', utm_id=result))
+
+    return render_template(**params)
+
+
+@app.route('/utm/edit/<ObjectId:utm_id>', methods=['GET', 'POST', 'DELETE'])
+def edit_utm(utm_id):
+    form = CreateUpdateUtm()
+    params = {
+        'template_name_or_list': 'utm.html',
+        'title': 'Редактировать УТМ',
+        'form': form
+    }
+
+    utm = mongo.db.utm.find_one_or_404(utm_id)
+
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items()}
+        utm.update(data)
+        utm['active'] = True if data.get('active') else False
+
+        mongo.db.utm.replace_one({'_id': utm.pop('_id')}, utm)
+
+    if request.method == 'DELETE':
+        mongo.db.utm.delete_many({'_id': utm.pop('_id')})
+        return redirect(url_for('list_utm'))
+
+    form.process(**utm)
 
     return render_template(**params)
 
 
 @app.route('/status', methods=['GET', 'POST'])
 def status():
-    default = request.args.get('ordering') or 'title'
+    ordering = request.args.get('ordering', 'title')
     form = StatusSelectOrder()
-    form.ordering.data = default
-
-    utm_filter = get_instance(request.form.get('filter'))
-    if utm_filter is not None:
-        try:
-            flash(f"{utm_filter.title}[{utm_filter.fsrar}]: {requests.get(utm_filter.reset_filter_url()).text}")
-        except (requests.ConnectionError, requests.ReadTimeout) as e:
-            flash(f'Не удалось выполнить запрос обновления {e}, УТМ недоступен')
+    form.ordering.data = ordering
 
     params = {
         'template_name_or_list': 'status.html',
         'title': 'Статус (новый)',
         'description': 'Результат последней проверки УТМ',
-        'ord': default,
+        'ord': ordering,
         'form': form,
-    }
-    try:
-        with MongoClient(app.config['MONGO_CONN']) as client:
-            col = client[app.config['MONGO_DB']][app.config['MONGO_COL_RES']]
-
-            results = list(col.find({'last': True}).sort(request.args.get('ordering', default), 1))
-        params['results'] = results
-
-    except Exception as e:
-        flash(f'{e} Выполните полную проверку')
-        logging.error(e)
-
-    return render_template(**params)
-
-
-@app.route('/status_check', methods=['GET'])
-def status_check():
-    params = {
-        'title': 'Проверка УТМ',
-        'template_name_or_list': 'status.html',
-        'description': 'Проверка по требованию, выполняектся около минуты',
-        'form': StatusSelectOrder(),
+        'results': mongo.db.result.find({'last': True}).sort(ordering, 1)
     }
 
-    with MongoClient(app.config['MONGO_CONN']) as client:
-        col = client[app.config['MONGO_DB']][app.config['MONGO_COL_RES']]
-        results = grab_utm_check_results_to_db(cfg.utms, col)
-
-    ordering = request.form.get('ordering', 'title')
-    results.sort(key=lambda result: result[ordering])
-    params['results'] = results
-
-    return render_template(**params)
-
-
-@app.route('/postman', methods=['GET'])
-def postman_check():
-    """ Проверка невыгруженных в обмен XML
-    """
-    params = {
-        'title': 'Проверка обмена Супермаг STORGCO',
-        'template_name_or_list': 'postman.html',
-        'description': 'Файлы XML необработанные почтовым модулем',
-    }
-
-    with MongoClient(app.config['MONGO_CONN']) as client:
-        col = client[app.config['MONGO_DB']][app.config['MONGO_COL_QUE']]
-
-        try:
-            results = col.find_one({}, sort=[('_id', DESCENDING)])
-            if results:
-                params['results'] = results['files']
-                params['total'] = results['total']
-                params['date'] = results['date']
-
-        except Exception as e:
-            logging.error(f'PostMan: не удалось получить результаты: {e}')
+    update_filter = request.form.get('filter')
+    if update_filter is not None:
+        utm_filter = Utm.get_one(fsrar=update_filter)
+        if utm_filter is not None:
+            try:
+                flash(f"{utm_filter.title}[{utm_filter.fsrar}]: {requests.get(utm_filter.reset_filter_url()).text}")
+            except (requests.ConnectionError, requests.ReadTimeout) as e:
+                flash(f'Не удалось выполнить запрос обновления {e}, УТМ недоступен')
 
     return render_template(**params)
 
@@ -1104,8 +937,8 @@ def postman_check():
 def test_utm():
     """ Тестовый УТМ для "подписи" чеков """
     return '<?xml version="1.0" encoding="UTF-8" standalone="no"?><A>' \
-           '<url>http://check.egais.ru?id=b9ae79cf-b019-474d-a2da-eda7faa834b1&amp;dt=0101200000&amp;cn=010000123456</url>' \
-           '<sign>1F4F407419A4CFDDD8B8A359B9AE2CE9E793F4E5057BB924321923E5A2C2184BE6F61A77932A9EE365FFD40A181102C7474072E8D9058565B49D417220A2A2EA</sign><ver>2</ver></A>'
+           '<url>http://check.egais.ru?id=b9ae79cf-b019-474d-a2da-eda7faa834b1&amp;dt=0101200000&amp</url>' \
+           '<sign>1F4F407419A4CFDDD8B8A359B9AE2CE9E793F4E5057BB924321923E5A2C2184BE6F61A77932</sign><ver>2</ver></A>'
 
 
 @app.route('/view_errors', methods=['GET'])
@@ -1149,7 +982,7 @@ def view_errors():
     last_utms = app.config['MARK_ERRORS_LAST_UTMS']
 
     form = MarkFormError()
-    form.fsrar.choices = cfg.utm_choices()
+    form.fsrar.choices = Utm.utm_choices()
     add_default_choice(form.fsrar.choices)
     form.fsrar.data = int(request.args.get('fsrar', 0))
     week_ago = datetime.now() - timedelta(days=last_days)
@@ -1160,36 +993,27 @@ def view_errors():
         'template_name_or_list': 'error_stats.html',
         'description': f'Статистика ошибок за {last_days}',
     }
+    col = mongo.db.marks
+    # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
+    errors_types = list(col.aggregate(pipeline_group_by('error', week_ago)))
+    # Собираем выпадайку с вариантами, добавляем туда пустой элемент
+    choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
+    form.error.choices = add_default_choice(choices_list)
 
-    try:
-        with MongoClient(app.config['MONGO_CONN']) as client:
-            col = client[app.config['MONGO_DB']][app.config['MONGO_COL_ERR']]
+    params['error_type_total'] = errors_types
+    params['fsrar_total'] = col.aggregate(pipeline_group_by('title', week_ago, last_utms))
 
-            # Т.к поле с типом ошибок динамическое, мы сначала получаем этот список из MongoDB
-            errors_types = list(col.aggregate(pipeline_group_by('error', week_ago)))
-            # Собираем выпадайку с вариантами, добавляем туда пустой элемент
-            choices_list = list((short_choices_hash(x['_id']['error']), x['_id']['error']) for x in errors_types)
-            form.error.choices = add_default_choice(choices_list)
+    if request.args:
+        # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
+        pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
+        error_arg = request.args.get('error')
+        # Т.к. ошибки у нас динамические, берем из словаря по ИД
+        if validate_arg(error_arg):
+            form.error.data = int(request.args.get('error', 0))
+            choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
+            pipeline_mark['error'] = choices_dict.get(int(error_arg))
 
-            params['error_type_total'] = errors_types
-            params['fsrar_total'] = col.aggregate(pipeline_group_by('title', week_ago, last_utms))
-
-            if request.args:
-                # Если были переданы параметры, то собираем пайплайн фильтра ошибок из них
-                pipeline_mark = {k: v for k, v in dict(request.args).items() if validate_arg(v)}
-                error_arg = request.args.get('error')
-                # Т.к. ошибки у нас динамические, берем из словаря по ИД
-                if validate_arg(error_arg):
-                    form.error.data = int(request.args.get('error', 0))
-                    choices_dict = {short_choices_hash(x['_id']['error']): x['_id']['error'] for x in errors_types}
-                    pipeline_mark['error'] = choices_dict.get(int(error_arg))
-
-                params['results'] = col.find(pipeline_mark).sort([('title', 1), ('date', -1)])
-
-    except Exception as e:
-        err = f'Недоступна БД {e}'
-        logging.error(err)
-        flash(err)
+        params['results'] = col.find(pipeline_mark).sort([('title', 1), ('date', -1)])
 
     return render_template(**params)
 
@@ -1199,8 +1023,3 @@ logging.basicConfig(
     level=logging.getLevelName(os.environ.get('LEVEL', 'INFO')),
     format='%(asctime)s %(levelname)s: %(message)s'
 )
-
-with MongoClient(app.config['MONGO_CONN']) as cl:
-    db = cl[app.config['MONGO_DB']]
-    cfg = Configs(db)
-

@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+
+    <p><a href="{{ url_for('.add_utm') }}">Добавить УТМ</a></p>
+    {% if results %}
+        <ol>
+            {% for utm in results %}
+                <li>
+                    {% if not utm['active'] %}<s>{% endif %}
+                    <a href="{{ url_for('.edit_utm', utm_id=utm['_id']) }}">{{ utm['title'] }} — {{ utm['fsrar'] }}
+                        — {{ utm['host'] }}</a>
+                    {% if not utm['active'] %}</s>{% endif %}
+                </li>
+            {% endfor %}
+        </ol>
+    {% endif %}
+{% endblock %}

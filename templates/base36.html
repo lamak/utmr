@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% if error %}
+        <p class=error><strong>Error:</strong> {{ error }}{% endif %}
+
+<form action="" method="post" name="send" role="form">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+        <label for="mark">PDF417 или алкокод</label>
+    <p>{{ form.mark(class="form-control") }}</p>
+    <span class="help-block">Алкокод 19 символов, PDF417 — 68 </span>
+
+    </div>
+    <p><input type="submit" value="Преобразовать" class="btn btn-primary"></p>
+    </form>
+
+    {% if result %}
+        {{ result }}
+    {% endif %}
+
+{% endblock %}
+

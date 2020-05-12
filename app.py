@@ -1022,6 +1022,63 @@ def get_utm_error_stats():
     return render_template(**params)
 
 
+@app.route('/base36', methods=['GET', 'POST'])
+def convert_base36():
+    """ Расшифровка алккода из АМ PDF417 (cтарого образца)"""
+
+    def base36encode(number: int, alphabet='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ') -> str:
+        """Converts an integer to a base36 string."""
+        if not isinstance(number, int):
+            raise TypeError('number must be an integer')
+
+        base36 = ''
+        sign = ''
+
+        if number < 0:
+            sign = '-'
+            number = -number
+
+        if 0 <= number < len(alphabet):
+            return sign + alphabet[number]
+
+        while number != 0:
+            number, i = divmod(number, len(alphabet))
+            base36 = alphabet[i] + base36
+
+        return sign + base36
+
+    def base36decode(number: str):
+        return int(number[3:19], 36)
+
+    def convert_to_alccode(number):
+        return str(base36decode(number)).zfill(19)
+
+    def convert_to_pdf417_part(code):
+        return base36encode(int(code)).zfill(16)
+
+    form = MarkForm()
+
+    params = {
+        'form': form,
+        'template_name_or_list': 'base36.html',
+        'title': 'Преобразование PDF и алкокода',
+        'description': f'Расшифровываем алкокод из PDF417, формирует часть PDF417 для поиска из алкокода',
+    }
+    if request.method == 'POST':
+
+        mark = form.mark.data.rstrip()
+        if len(mark) == 68:
+            flash(convert_to_alccode(mark))
+        elif len(mark) == 19:
+            flash(convert_to_pdf417_part(mark))
+        elif len(mark) == 150:
+            flash('Невозможно извлечь алкокод из марки нового образца')
+        else:
+            flash('Неожиданная длина марки')
+
+    return render_template(**params)
+
+
 logging.basicConfig(
     filename='app.log',
     level=logging.getLevelName(os.environ.get('LEVEL', 'INFO')),

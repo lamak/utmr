@@ -771,44 +771,57 @@ def get_utm_errors():
 @app.route('/rests', methods=['GET', 'POST'])
 def get_rests():
     form = RestsForm()
+    data = form.fsrar.data
     form.fsrar.choices = Utm.utm_choices()
+    form.fsrar.data = data
+
     params = {
         'template_name_or_list': 'rests.html',
-        'title': 'Поиск остатков в обмене',
-        'description': 'Показывает остатки по алкокодам из последниx запросов',
+        'title': 'Остатки ЕГАИС',
+        'description': 'Р1, Р2, фильтры по дате, типу, алкокоду',
         'form': form,
     }
-
     if request.method == 'POST':
-        results = dict()
-        exclude = ['Error']
-
-        search_alc_code = request.form['alc_code'].strip()
-        limit = get_limit(request.form['limit'], 50, 10)
         utm = Utm.get_one(fsrar=request.form['fsrar'])
-        form.fsrar.data = utm.fsrar
+        alc_code = form.alc_code.data.split()
 
-        for root, dirs, files in os.walk(utm.path):
-            dirs[:] = [d for d in dirs if d not in exclude]
-            files = [fi for fi in files if fi.find("ReplyRestsShop_v2") > 0]
-            files.sort(reverse=True)
+        is_retail = form.is_retail.data
+        by_request = form.by_request.data
+        date_till = form.date_till.data or datetime.now()
+        date_from = form.date_from.data or date_till - timedelta(days=7)
 
-            for reply_rests in files[:limit]:
-                with open(os.path.join(utm.path, reply_rests), encoding="utf8") as f:
-                    rests_dict = xmltodict.parse(f.read())
-                    rests_shop = rests_dict.get('ns:Documents').get('ns:Document').get('ns:ReplyRestsShop_v2')
-                    rest_date = humanize_date(rests_shop.get('rst:RestsDate'))
+        query_filter = {'is_retail': is_retail, 'fsrar': utm.fsrar}
 
-                    for position in rests_shop.get('rst:Products').get('rst:ShopPosition'):
-                        alc_code = position.get('rst:Product').get('pref:AlcCode')
-                        quantity = position.get('rst:Quantity')
-                        if search_alc_code in ('', alc_code):
-                            if results.get(alc_code, False):
-                                results[alc_code][rest_date] = quantity
-                            else:
-                                results[alc_code] = {rest_date: quantity}
+        if date_from or date_till:
+            period = {}
 
-        params['results'] = results
+            if date_from:
+                period.update({'$gt': date_from})
+
+            if date_till:
+                period.update({'$lt': date_till})
+
+            query_filter.update({f'date': period})
+
+        query = list(mongo.db.rests.find(query_filter).sort('date'))
+
+        if form.by_request.data:
+            params['results'] = query
+
+        else:
+            date_res = dict()
+            for res_ in query:
+                date_ = res_['date']
+                for code_, qty_ in res_['rests'].items():
+                    if not alc_code or code_ in alc_code:
+                        if code_ in date_res.keys():
+                            date_res[code_].update({date_: qty_})
+                        else:
+                            date_res[code_] = {date_: qty_}
+            params['results'] = date_res
+
+        params['is_retail'] = is_retail
+        params['by_request'] = by_request
 
     return render_template(**params)
 

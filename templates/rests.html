@@ -2,45 +2,87 @@
 {% block body %}
     {% if error %}
         <p class=error><strong>Error:</strong> {{ error }}{% endif %}
-<form action="" method="post" name="send" role="form">
+    <form action="" method="post" name="send" role="form">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            <div class="row">
+                <div class="col-xs-10">
+                    <label for="fsrar">УТМ</label>
+                    {{ form.fsrar(class="form-control") }}
+                    <span class="help-block">Выберите УТМ, регистр Р2 или Р1,
+                        представление: историю по алкокоду или содержимое запросов остатков.</span>
+                </div>
+                <div class="col-xs-1">
+                    <label for="is_retail" title="... или Р1" class="center-block">Р2</label>
+                    {{ form.is_retail(class='form-control') }}
+                </div>
+                <div class="col-xs-1">
+                    <label for="by_request" title="... или алкокодам" class="center-block">По дням</label>
+                    {{ form.by_request(class='form-control') }}
+                </div>
+            </div>
+            <hr>
+            <div class="row">
 
-    <label for="alc_code">Алкокод</label>
-    <p>{{ form.alc_code(class="form-control") }}</p>
-    <span class="help-block">Фильтр по алкокоду, необязателен</span>
-
-    <label for="limit">Кол-во последних запросов</label>
-    <p>{{ form.limit(class="form-control") }}</p>
-    <span class="help-block">Для точек работающих не в STORGCO, может быть долго, т.к. идет тяжелых запросов остатков с ТТ. Максимальное количество 50, по умолчанию 10</span>
-
-    <label for="fsrar">Выберите УТМ торговый точки</label>
-    <p>{{ form.fsrar(class="form-control") }}</p>
-    <br>
-
-    <p><input type="submit" value="Получить" class="btn btn-primary"></p>
+                <div class="col-xs-6">
+                    <label for="alc_code">Алкокод</label>
+                    {{ form.alc_code(class="form-control") }}
+                    <span class="help-block">Необязателен или несколкьо через пробел
+                        (отключено в режиме по дням)</span>
+                </div>
+                <div class="col-xs-3">
+                    <label for="date_from" title="гг.мм.дд">Дата от ...</label>
+                    {{ form.date_from(class="form-control") }}
+                    <span class="help-block">Опционально, по умолчанию -7 дней</span>
+                </div>
+                <div class="col-xs-3">
+                    <label for="date_till" title="гг.мм.дд">... до</label>
+                    {{ form.date_till(class="form-control") }}
+                    <span class="help-block">Опционально, по умолчанию сейчас</span>
+                </div>
+            </div>
+            <hr>
+            <input type="submit" value="Сформировать" class="btn btn-primary">
     </form>
     {% if results %}
-        <h1>Результаты:</h1>
-
-        {% for alc_code, rests in results.items() %}
-            <table class="table table-hover">
-            <thead>
-            <h3>Алкокод: {{ alc_code }}</h3>
-            <tr>
-                <th>Дата</th>
-                <th>Количество</th>
-            </tr>
-            </thead>
-            <tbody>
-
-            {% for date,quantity  in rests.items() %}
+        <h2>Результаты {% if is_retail %}Р2{% else %}Р1{% endif %}:</h2>
+        {% if by_request %}
+            {% for rests in results %}
+                <table class="table table-striped table-hover">
+                <thead>
                 <tr>
-                    <td>{{ date }}</td>
-                    <td>{{ quantity }}</td>
+                    <th><h4>{{ rests['date'].strftime('%Y.%m.%d %H:%M') }}</h4></th>
+                    <th></th>
                 </tr>
+                </thead>
+                <tbody>
+                {% for alccode, quantity  in rests['rests'].items() %}
+                    <tr>
+                        <td>{{ alccode }}</td>
+                        <td><code>{{ quantity }}</code></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
             {% endfor %}
-            </tbody>
-
-        {% endfor %}
+        {% else %}
+            {% for alc_code, rests in results.items() %}
+                <table class="table table-striped table-hover">
+                <thead>
+                <tr>
+                    <th><h4>Алкокод: {{ alc_code }}</h4></th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for date,quantity  in rests.items() %}
+                    <tr>
+                        <td>{{ date.strftime('%Y.%m.%d %H:%M') }}</td>
+                        <td><code>{{ quantity }}</code></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            {% endfor %}
+        {% endif %}
     {% endif %}
 
 

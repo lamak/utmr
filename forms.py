@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, SelectField, FileField, BooleanField
+from wtforms import StringField, IntegerField, SelectField, BooleanField, DateTimeField
 from wtforms.validators import DataRequired, Length, Regexp
 
 
@@ -7,13 +7,13 @@ class FsrarForm(FlaskForm):
     fsrar = SelectField('fsrar', coerce=int)
 
 
-class UploadForm(FlaskForm):
-    file = FileField()
-
-
 class RestsForm(FsrarForm):
     alc_code = StringField('alc_code')
     limit = IntegerField('limit')
+    is_retail = BooleanField()
+    by_request = BooleanField()
+    date_from = DateTimeField(format='%y.%m.%d')
+    date_till = DateTimeField(format='%y.%m.%d')
 
 
 class TicketForm(FsrarForm):
@@ -65,6 +65,7 @@ class CreateUpdateUtm(FlaskForm):
     ukm = StringField('ukm', validators=[DataRequired()])
     active = BooleanField('active')
     path = StringField('path')
+    _id = StringField('_id')
 
 
 class StatusSelectOrder(FlaskForm):

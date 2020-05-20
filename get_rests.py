@@ -1,67 +1,108 @@
-import os
+import logging
+from collections import OrderedDict
+from datetime import datetime, timedelta
+from os import listdir, path, environ
+from re import compile
 
-import cx_Oracle
-from dotenv import load_dotenv
 from pymongo import MongoClient
+from xmltodict import parse
 
-load_dotenv()
-
-
-def add_or_update(d, element, value):
-    val = d.get(element)
-    if val is None:
-        d[element] = value
-    else:
-        val.update(value)
+from app import Utm
 
 
-conn = os.environ.get('ORA_CONN')
-con = cx_Oracle.connect(conn)
-cur = con.cursor()
-
-fsrar = os.environ.get('FSRAR')
-fsrar = fsrar.split(',')
-fsrar = [el.strip() for el in fsrar]
-
-print(f'FSRAR to SAVE: {fsrar}')
-for fsrar_id in fsrar:
-
-    sql = f"""
-            SELECT distinct sp.PRODUCTALCCODE,
-                            sp.INFORMBREGID,
-                            SUM(CASE WHEN DOCTYPE = 'WBTransferToShop' THEN quantity ELSE -QUANTITY END) AS ttl
-            from SMEGAISDOCHEADER hd
-                left join SMEGAISDOCSPEC sp on hd.GLID = sp.GLID and hd.BORNIN = sp.BORNIN
-            where hd.OURFSRARID = '{fsrar_id}'
-                and hd.doctype in ('WBTransferFromShop', 'WBTransferToShop')
-                and hd.DOCSTATE in (32, 42)
-                and sp.PRODUCTVCODE not in (500, 510, 520, 261, 262, 263)
-            GROUP BY sp.PRODUCTALCCODE, sp.INFORMBREGID
-            order by sp.PRODUCTALCCODE, ttl desc
-            """
-    cur.execute(sql)
-    rests = cur.fetchall()
-    res = {}
-    for row in rests:
-        add_or_update(res, row[0], {row[1]: row[2]})
-    total_source_list = sum([x[2] for x in rests])
-    total_result_dict = sum([sum([qty for qty in code.values()]) for code in res.values()])
-
-    if total_result_dict != total_source_list:
-        print(f'ERROR SOURCE QTY != RES QTY [ {total_source_list} != {total_result_dict}', end='... ')
-    else:
-        print(f'{fsrar_id}: {total_result_dict}', end='... ')
-
-    record = {
-        'fsrar': fsrar_id,
-        'quantity': total_result_dict,
-        'rests': res,
-    }
+def humanize_date(iso_date: str) -> str:
     try:
-        with MongoClient(os.environ.get('MONGO_CONN', 'localhost:27017')) as client:
-            col = client[os.environ.get('MONGO_DB', 'utm')][os.environ.get('MONGO_TTS', 'tts')]
-            col.insert_one(record)
-            print('RESTS SAVED SUCCESS')
+        iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S.%f')
+    except ValueError:
+        iso_date = datetime.strptime(iso_date, '%Y-%m-%dT%H:%M:%S')
 
-    except Exception as e:
-        print(f'ERROR CANT SAVE RESULTS TO DB: {e}')
+    return iso_date + timedelta(hours=7)
+
+
+def add_code_to_rests(pos, rst):
+    if isinstance(pos, str):
+        logging.error(f'ReplyRests POS IS STR {pos}')
+    else:
+        alc_code = pos.get('rst:Product').get('pref:AlcCode')
+        quantity = pos.get('rst:Quantity')
+        rst[alc_code] = float(quantity)
+
+
+def main():
+    start = datetime.now()
+    mongo = MongoClient()
+    valid_regexp = environ.get('RESTS_REGEXP', f'({datetime.now().strftime("%y%m%d")}).*(ReplyRests)')
+    valid_filename = compile(valid_regexp)
+    logging.info(f'ReplyRests Processing files with REGEXP: {valid_regexp}')
+
+    results = []
+
+    for u in Utm.get_active():
+        print(u.host, u)
+        logging.info(f'ReplyRests Processing UTM: {u} {u.host}')
+        try:
+            files = [f for f in listdir(u.path) if valid_filename.match(f)]
+        except Exception as e:
+            logging.error(f'ReplyRests CANT FIND DIR {e}')
+            files = []
+        # legacy, in case we need error subdir too
+        # for _, _, files in walk('.'):
+        #     files = [fi for fi in files if valid_filename.match(fi)]
+        #     files.sort(reverse=True)
+
+        logging.info(f'ReplyRests to process: {files}')
+
+        for reply_rests in files:
+            logging.info(f'ReplyRests processing: {reply_rests}')
+            print('.', end='')
+            res = dict()
+            if 'ReplyRestsShop' in reply_rests:
+                is_retail = True
+                rests_name = 'ns:ReplyRestsShop_v2'
+                position_name = 'rst:ShopPosition'
+
+            elif 'ReplyRests' in reply_rests:
+                is_retail = False
+                rests_name = 'ns:ReplyRests_v2'
+                position_name = 'rst:StockPosition'
+
+            else:
+                raise Exception(f'Unexpected filename {reply_rests}')
+            
+            with open(path.join(u.path, reply_rests), encoding="utf8") as f:
+                try:
+
+                    rests_dict = parse(f.read())
+                    document = rests_dict.get('ns:Documents').get('ns:Document')
+                    doc_rests = document.get(rests_name)
+                    rests_date = humanize_date(doc_rests.get('rst:RestsDate'))
+                    doc_products = doc_rests.get('rst:Products')
+
+                    del rests_dict
+                    del doc_rests
+                    del document
+
+                    if isinstance(doc_products, OrderedDict):
+                        rests = dict()
+                        for position in doc_products.get(position_name):
+                            add_code_to_rests(position, rests)
+                    else:
+                        logging.warning(f'ReplyRests {u.host} {reply_rests} not a dict')
+
+                    res['date'] = rests_date
+                    res['fsrar'] = u.fsrar
+                    res['is_retail'] = is_retail
+                    res['rests'] = rests
+
+                    if not mongo.utmr.rests.find_one({'fsrar': res['fsrar'], 'date': res['date'], 'is_retail': res['is_retail']}):
+                        mongo.utmr.rests.insert_one(res)
+                        del res
+                
+                except Exception as e:
+                    logging.error(f'ReplyRests SKIPPED {reply_rests} {e}')
+        print(' ')
+
+    logging.info(f'ReplyRests Done in {datetime.now() - start}')
+
+
+main()

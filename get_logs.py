@@ -5,29 +5,10 @@ import smtplib
 from datetime import datetime
 from email.header import Header
 from email.mime.text import MIMEText
-from typing import Optional, Tuple, Union
+from typing import Optional, Union, List
 
-from pymongo import MongoClient
-
-from app import Utm, Configs
+from app import Utm
 from config import AppConfig
-
-
-class MarkErrors:
-
-    def __init__(self, log_date, title, fsrar, error, mark=None):
-        self.title = title
-        self.fsrar = fsrar
-        self.date = log_date
-        self.error = error
-        self.mark = mark
-
-
-def get_utm_list(filename: str = AppConfig.UTM_CONFIG):
-    with open(filename, 'r', encoding='utf-8') as f:
-        utms = [Utm(*u.split(';')) for u in f.read().splitlines()]
-        utms.sort(key=lambda utm: utm.fsrar)
-    return utms
 
 
 def catch_error_line(line: str, re_err) -> Optional[str]:
@@ -72,61 +53,62 @@ def parse_log_for_errors(filename: str) -> (list, int, str):
     return error_mark_events, cheques_counter, err
 
 
-def parse_errors(errors: list, utm: Utm):
+def parse_errors(errors: list, utm: Utm) -> List[dict]:
     """ собираем список объектов ошибок для дальнешей обработки"""
-    processed_errors = []
 
-    nonvalid = 'Невалидные марки'
+    def add_mark(lst, date, ttl, fsrar_id, err, err_marks=None):
+        template_result = {'date': date, 'title': ttl, 'fsrar': fsrar_id, 'error': err}
+
+        if err_marks is None:
+            lst.append(template_result)
+
+        elif isinstance(err_marks, list):
+            for m in err_marks:
+                template_result['mark'] = m
+                lst.append(template_result)
+
+        else:
+            template_result['mark'] = err_marks
+            lst.append(template_result)
+
+    no_key = 'Ошибка поиска модели'
     bad_time = 'продажа в запрещенное время'
     no_filter = 'Настройки еще не обновлены'
     last_cheque = 'Подпись предыдущего чека не завершена.'
-    no_key = 'Ошибка поиска модели'
+    invalid_mark = 'Невалидные марки'
+    errs = (invalid_mark, bad_time, no_filter, last_cheque, no_key)
+
+    title = utm.title
+    fsrar = utm.fsrar
+    parsed_entries = []
 
     for e in errors:
-        error_time = e[0]
-        error_text = e[1]
+        dt, message = e
 
         try:
-            if nonvalid in error_text:
-                a, b = error_text.find('['), error_text.find(']')
-                marks = error_text[a + 1:b].split(', ')
-                for m in marks:
-                    processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, nonvalid, m))
+            r = [err for err in errs if err in message]
+            if r:
+                marks = None
+                if r[0] == invalid_mark:
+                    a, b = message.find('['), message.find(']')
+                    marks = message[a + 1:b].split(', ')
 
-            elif bad_time in error_text:
-                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, bad_time))
-
-            elif no_filter in error_text:
-                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, no_filter))
-
-            elif no_key in error_text:
-                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, no_key))
-
-            elif last_cheque in error_text:
-                processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, last_cheque))
+                add_mark(parsed_entries, dt, title, fsrar, r[0], marks)
 
             else:
-                _, title, error_line = error_text.split(':')
+                _, _, error_line = message.split(':')
                 split_results = error_line.split(',')
                 for mark_res in split_results:
                     mark, description = get_marks_from_errors(mark_res)
-                    processed_errors.append(MarkErrors(error_time, utm.title, utm.fsrar, description, mark))
+                    add_mark(parsed_entries, dt, title, fsrar, description, mark)
 
         except ValueError:
-            processed_errors.append(
-                MarkErrors(error_time, utm.title, utm.fsrar, 'Не удалось обработать ошибку: ' + error_text))
+            add_mark(parsed_entries, dt, title, fsrar, 'Не удалось обработать ошибку: ' + message)
 
-    return processed_errors
-
-
-def get_transport_transaction_filenames(current: str = AppConfig.UTM_LOG_NAME) -> Tuple[str]:
-    """ Список файлов журналов за последние 2 дня"""
-    # todo: при штатном запуске не существует, может понадобится при пропущенном запуске
-    # yesterday = f'{current}.{(datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")}'
-    return current,
+    return parsed_entries
 
 
-def check_file_exist(utm: Utm, filename: str):
+def get_log_file(utm: Utm, filename: str):
     """ Проверяем существование файла журнала """
 
     filename = utm.log_dir() + filename
@@ -154,49 +136,41 @@ def send_email(subject: str, text: str, mail_from: Union[str, list], mail_to: st
 
 def process_transport_transaction_log(u: Utm, file: str):
     """ Сохранение ошибок из файла журнала транзакций УТМ в MongoDB и отправка писем """
-
-    file = check_file_exist(u, file)
+    file = get_log_file(u, file)
 
     if file is not None:
+        from app import mongo
+
         errors_found, _, _ = parse_log_for_errors(file)
-        errors_objects = parse_errors(errors_found, u)
+        errors = parse_errors(errors_found, u)
+        marks = []
 
-        err_to_mail = []
-        with MongoClient(AppConfig.MONGO_CONN) as client:
-            col = client[AppConfig.MONGO_DB][AppConfig.MONGO_COL_ERR]
+        for e in errors:
+            if not mongo.db.marks.find_one({'date': e['date'], 'fsrar': e['fsrar']}):
+                marks.append(e)
 
-            for e in errors_objects:
+        if marks:
+            mongo.db.marks.insert_many(marks)
 
-                if not col.find_one({'date': e.date, 'fsrar': u.fsrar}):
-                    col.insert_one(vars(e))
-                    err_to_mail.append(e)
-                    logging.info(f'Добавлена {u.fsrar} {e.error} {e.mark}')
-
-        if err_to_mail:
             human_date = '%Y.%m.%d %H:%M'
-            message = '\n\n'.join([f'{e.date.strftime(human_date)} Ошибка "{e.error}"\n{e.mark}' for e in err_to_mail])
+            message = '\n\n'.join([f"{e.get('date').strftime(human_date)} Ошибка {e.get('error')}\n"
+                                   f"{e.get('mark', 'Марка не распознана')}" for e in marks])
             message = f'{u.title} {u.fsrar} {u.host}\n При проверке были найдены следующие ошибки:\n\n' + message
             subj = f'Ошибка УТМ {u.title} {datetime.today().strftime("%Y.%m.%d")}'
             send_email(subj, message, AppConfig.MAIL_FROM, AppConfig.MAIL_TO)
-            logging.info(f'Отправлено сообщение об {len(err_to_mail)} ошибках')
+            logging.info(f'Отправлено сообщение об {len(marks)} ошибках')
 
 
-def process_utm(u: Utm, filenames: Tuple[str]):
+def process_utm(u: Utm):
     """ Сбор и обработку журналов транзакций УТМ """
     logging.info(f'УТМ {u.host} {u.title} {u.fsrar}')
-    [process_transport_transaction_log(u, file) for file in filenames]
+    process_transport_transaction_log(u, AppConfig.UTM_LOG_NAME)
 
 
 def main():
-    with MongoClient(AppConfig.MONGO_CONN) as client:
-        db = client[AppConfig.MONGO_DB]
-        cfg = Configs(db)
-        utms = cfg.utms
-
     start = datetime.now()
-    transport_transactions_files = get_transport_transaction_filenames()
-    [process_utm(u, transport_transactions_files) for u in utms]
-    logging.info(f'Done: {datetime.now() - start}')
+    [process_utm(u) for u in Utm.get_active()]
+    logging.info(f'Cheque errors processing done: {datetime.now() - start}')
 
 
 main()

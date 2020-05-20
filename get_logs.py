@@ -153,7 +153,8 @@ def process_transport_transaction_log(u: Utm, file: str):
             mongo.db.marks.insert_many(marks)
 
             human_date = '%Y.%m.%d %H:%M'
-            message = '\n\n'.join([f"{e['date'].strftime(human_date)} Ошибка {e['error']}\n{e['mark']}" for e in marks])
+            message = '\n\n'.join([f"{e.get('date').strftime(human_date)} Ошибка {e.get('error')}\n"
+                                   f"{e.get('mark', 'Марка не распознана')}" for e in marks])
             message = f'{u.title} {u.fsrar} {u.host}\n При проверке были найдены следующие ошибки:\n\n' + message
             subj = f'Ошибка УТМ {u.title} {datetime.today().strftime("%Y.%m.%d")}'
             send_email(subj, message, AppConfig.MAIL_FROM, AppConfig.MAIL_TO)
